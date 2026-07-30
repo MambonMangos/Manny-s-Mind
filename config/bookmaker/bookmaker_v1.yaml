@@ -1,0 +1,27 @@
+version: "1.0.0"
+created_at: "2026-07-27"
+description: "Bookmaker integration parameters"
+
+api:
+  base_url: "https://api.the-odds-api.com/v4"
+  api_key_env: "ODDS_API_KEY"   # environment variable name
+  sport: "soccer_epl"
+  regions: "uk,eu"
+  markets: "h2h,totals"
+  cache_ttl_seconds: 3600
+  timeout_seconds: 15
+
+# Behavior when API is unavailable
+graceful_degradation:
+  enabled: true
+  fallback_signal: "neutral"   # return neutral signal when unavailable
+  log_warnings: true
+
+# Overround removal
+normalization:
+  method: "multiplicative"     # multiplicative or power
+
+# Player name mapping
+name_mapping:
+  fuzzy_threshold: 0.6         # minimum difflib similarity score
+  max_results: 3               # top N matches to consider

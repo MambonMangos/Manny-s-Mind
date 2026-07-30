@@ -1,0 +1,65 @@
+version: "1.0.0"
+created_at: "2026-07-27"
+description: "Fixture engine parameters"
+
+difficulty_labels:
+  1: "Very Easy"
+  2: "Easy"
+  3: "Neutral"
+  4: "Hard"
+  5: "Very Hard"
+
+# Fixture score formula: ((5 - difficulty) / 4) * score_scale
+score_scale: 100
+
+# Swing detection threshold (min difficulty change to trigger alert)
+swing_threshold: 1.0
+
+# Home advantage (reduces effective difficulty)
+home_advantage: 0.3
+
+# Opponent strength classification thresholds (percentiles of team strength)
+opponent_attack_tiers:
+  elite: 85    # top 15%
+  strong: 65   # 65th-85th percentile
+  average: 35  # 35th-65th percentile
+  weak: 0      # bottom 35%
+
+opponent_defence_tiers:
+  elite: 85
+  strong: 65
+  average: 35
+  weak: 15
+  very_weak: 0
+
+# Difficulty modifiers by opponent tier
+attack_modifiers:
+  elite: 1.0
+  strong: 0.5
+  average: 0.0
+  weak: -0.5
+
+defence_modifiers:
+  elite: -0.5
+  strong: -0.25
+  average: 0.0
+  weak: 0.25
+  very_weak: 0.5
+
+# Rest days thresholds
+rest_days:
+  very_tired: 2     # < 2 days since last match
+  tired: 3          # < 3 days
+  fresh: 5          # > 5 days
+  very_fresh: 7     # > 7 days
+
+rest_modifiers:
+  very_tired: -0.4
+  tired: -0.2
+  normal: 0.0
+  fresh: 0.15
+  very_fresh: 0.25
+
+# DGW/BGW
+dgw_multiplier: 1.8   # not 2.0 due to rotation risk
+bgw_score: 0.0

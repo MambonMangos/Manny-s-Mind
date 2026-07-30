@@ -1,0 +1,52 @@
+version: "1.0.0"
+created_at: "2026-07-27"
+description: "Minutes engine parameters"
+
+# Tier-based projections (fallback when no historical data)
+tiers:
+  0: 60.0      # no recent minutes
+  90: 55.0     # played 1 match
+  180: 70.0    # played 2 matches
+  270: 85.0    # played 3 matches (ever-present)
+
+# Starting probability modifiers
+modifiers:
+  home_advantage: 0.05
+  easy_fixture: 0.03
+  hard_fixture: -0.02
+  congested_schedule: -0.05
+  international_duty: -0.03
+  returning_from_injury: -0.10
+  new_signing: -0.05
+
+# Rotation risk thresholds
+rotation_risk:
+  high_threshold: 0.30    # < 30% chance of starting
+  medium_threshold: 0.60  # < 60% chance
+
+# Substitution risk (probability of being subbed off)
+substitution_risk:
+  high_minutes_threshold: 75  # if expected > 75 mins, sub risk increases
+  typical_sub_minute: 65      # typical sub-off minute
+
+# Confidence tiers based on data availability
+confidence:
+  no_data: 30              # no historical snapshots
+  limited_data: 50         # < 5 snapshots
+  moderate_data: 70        # 5-15 snapshots
+  good_data: 85            # 15+ snapshots
+
+# Season phase adjustments
+season_phase:
+  preseason:
+    confidence_multiplier: 0.6
+    rely_on: ["prior_season", "preseason_transfers", "bookmaker_odds"]
+  early_season:  # GW 1-3
+    confidence_multiplier: 0.75
+    rely_on: ["current_season_limited", "prior_season", "bookmaker_odds"]
+  establishing:  # GW 4-10
+    confidence_multiplier: 0.90
+    rely_on: ["current_season", "prior_season_weighted", "bookmaker_odds"]
+  established:   # GW 11+
+    confidence_multiplier: 1.0
+    rely_on: ["current_season", "bookmaker_odds"]

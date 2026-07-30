@@ -1,0 +1,10 @@
+# Which version of each config category is active
+# When switching versions, update this file — never overwrite old versions.
+
+active_versions:
+  weights: weights_v2
+  fixtures: fixtures_v1
+  minutes: minutes_v1
+  prediction: prediction_v1
+  bookmaker: bookmaker_v1
+  features: features_v1

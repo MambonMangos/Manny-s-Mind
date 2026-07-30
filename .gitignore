@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.venv/
+venv/
+env/
+*.so
+
+# Database
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/*.db-journal
+data/bootstrap-static.json
+
+# Environment
+.env
+.env.local
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Test & cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+instance/
+
+# Config (keep example, ignore local overrides)
+config/*.local.yaml
+config/*.override.yaml

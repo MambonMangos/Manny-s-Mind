@@ -1,0 +1,34 @@
+version: "1.0.0"
+created_at: "2026-07-27"
+description: "Feature engineering parameters"
+
+# Rolling window sizes
+rolling_windows: [3, 5, 10]
+
+# Trend computation
+trend:
+  window: 5              # GWs over which to compute slope
+  min_samples: 3         # minimum GWs needed for trend
+
+# Market features
+market:
+  velocity_window: 3     # GWs over which to compute velocity
+  price_change_threshold: 0.1   # min price change to count as "change"
+
+# Regression detection
+regression:
+  goals_vs_xg_overperform_threshold: 0.5   # goals > 1.5 * xG
+  goals_vs_xg_underperform_threshold: -0.3 # goals < 0.7 * xG
+  finishing_ratio_overperform: 1.3
+  finishing_ratio_underperform: 0.7
+  min_sample_size: 3     # minimum GWs for regression analysis
+
+# Fixture features
+fixture:
+  windows: [1, 3, 6]
+  swing_threshold: 1.0
+
+# Availability
+availability:
+  doubt_statuses: ["d", "i", "s", "u"]   # statuses that indicate unavailability
+  fit_status: "a"

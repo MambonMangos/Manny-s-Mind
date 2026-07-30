@@ -1,0 +1,12 @@
+version: "1.0.0"
+created_at: "2026-07-27"
+description: "Original V1 value score weights — frozen for backwards compatibility"
+
+value_score:
+  minutes: 0.30
+  xgi_per_90: 0.25
+  value: 0.15
+  team_strength: 0.10
+  fixture: 0.10
+  ownership: 0.05
+  set_pieces: 0.05
