@@ -199,7 +199,7 @@ def _norm_val(value: float, col: str) -> float:
 
 fig_radar = go.Figure()
 
-__radar_colors = ["#6366f1", "#06b6d4", "#34d399", "#fbbf24", "#f87171"]
+_radar_colors = ["#6366f1", "#06b6d4", "#34d399", "#fbbf24", "#f87171"]
 
 for i, (_, row) in enumerate(comp_df.iterrows()):
     values = [_norm_val(row[col], col) for col in raw_cols]
@@ -209,8 +209,8 @@ for i, (_, row) in enumerate(comp_df.iterrows()):
         theta=radar_labels + [radar_labels[0]],
         fill="toself",
         name=f"{row['web_name']} ({row['team_short']})",
-        line=dict(color=__radar_colors[i % len(__radar_colors)], width=2),
-        fillcolor=__radar_colors[i % len(__radar_colors)],
+        line=dict(color=_radar_colors[i % len(_radar_colors)], width=2),
+        fillcolor=_radar_colors[i % len(_radar_colors)],
         opacity=0.5,
     ))
 

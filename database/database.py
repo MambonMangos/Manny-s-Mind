@@ -8,6 +8,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
+import utils.env  # noqa: F401  (load .env before reading DATABASE_URL)
 from database.models import Base
 
 _DB_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -35,7 +36,7 @@ def init_db() -> None:
 
 
 @event.listens_for(engine, "connect")
-def _set_sqlite_pragma(dbapi_conn, connection_record):  # noqa: ANN001
+def _set_sqlite_pragma(dbapi_conn, connection_record):
     """Enable WAL mode and foreign keys for SQLite."""
     cursor = dbapi_conn.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")

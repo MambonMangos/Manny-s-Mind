@@ -2,16 +2,21 @@
 
 Uses synthetic player data to verify the pipeline chains all engines
 correctly without needing a live FPL API connection.
+
+Assertion-based: each stage verifies invariants rather than relying on
+"no exception == pass".
 """
 
-import sys
-import os
+from __future__ import annotations
 
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import os
+import sys
 
 import numpy as np
 import pandas as pd
+
+# Ensure project root is importable when run via pytest.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def create_synthetic_players(n=50):
@@ -65,6 +70,7 @@ def create_synthetic_players(n=50):
 
 def create_synthetic_fixtures(n_teams=20, n_gws=10):
     """Create synthetic fixture data."""
+    rng = np.random.default_rng(42)
     fixtures = []
     for gw in range(1, n_gws + 1):
         for i in range(0, n_teams, 2):
@@ -72,33 +78,26 @@ def create_synthetic_fixtures(n_teams=20, n_gws=10):
                 "event": gw,
                 "team_h": i + 1,
                 "team_a": i + 2,
-                "team_h_difficulty": np.random.randint(1, 6),
-                "team_a_difficulty": np.random.randint(1, 6),
+                "team_h_difficulty": int(rng.integers(1, 6)),
+                "team_a_difficulty": int(rng.integers(1, 6)),
             })
     return fixtures
 
 
 def test_pipeline():
-    """Test the full V2 projection pipeline."""
-    print("=" * 60)
-    print("V2 Projection Pipeline — End-to-End Test")
-    print("=" * 60)
-
-    # 1. Create synthetic data
-    print("\n1. Creating synthetic player data...")
+    """Test the full V2 projection pipeline with assertions at every stage."""
+    # 1. Synthetic data shape
     player_df = create_synthetic_players(50)
-    print(f"   Created {len(player_df)} players")
-    print(f"   Positions: {player_df['position'].value_counts().to_dict()}")
+    assert len(player_df) == 50, "Expected 50 synthetic players"
+    assert set(player_df["position"].unique()) <= {"GKP", "DEF", "MID", "FWD"}
 
-    # 2. Build fixture map
-    print("\n2. Building fixture map...")
+    # 2. Fixture map
     fixtures = create_synthetic_fixtures()
     from engines.fixture_engine import build_fixture_map
     fixture_map = build_fixture_map(fixtures)
-    print(f"   Built fixture map for {len(fixture_map)} teams")
+    assert len(fixture_map) == 20, f"Expected 20 teams in fixture map, got {len(fixture_map)}"
 
-    # 3. Build feature store
-    print("\n3. Building Feature Store...")
+    # 3. Feature Store
     from features import build_feature_store
     from utils.config import get_config_hash
 
@@ -110,13 +109,14 @@ def test_pipeline():
         gameweek_id=3,
         config_hash=config_hash,
     )
-    print(f"   Feature Store: {store.summary()}")
+    summary = store.summary()
+    assert summary.get("n_players", 0) > 0, "Feature Store must contain players"
+    assert store.config_hash == config_hash, "Config hash must propagate to Feature Store"
 
-    # 4. Run pipeline
-    print("\n4. Running V2 Projection Pipeline...")
+    # 4. Pipeline run
     from services.pipeline import run_projection_pipeline
 
-    current_squad = list(range(1, 16))  # first 15 players
+    current_squad = list(range(1, 16))
     result = run_projection_pipeline(
         store=store,
         gameweek_id=3,
@@ -124,55 +124,44 @@ def test_pipeline():
         budget_remaining=5.0,
     )
 
-    print(f"\n   Pipeline Result:")
-    summary = result.summary()
-    for k, v in summary.items():
-        print(f"   {k}: {v}")
+    # 5. Projections: one per player, valid point range, sane CIs
+    assert len(result.projections) > 0, "Pipeline must produce projections"
+    for p in result.projections:
+        assert p.projected_points >= 0, f"Negative projection for {p.web_name}"
+        if p.ci_80_low is not None and p.ci_80_high is not None:
+            assert p.ci_80_low <= p.ci_80_high, "80% CI bounds must be ordered"
 
-    # 5. Check projections
-    print(f"\n5. Sample Projections (top 5 by projected points):")
-    sorted_proj = sorted(result.projections, key=lambda p: p.projected_points, reverse=True)
-    for p in sorted_proj[:5]:
-        print(f"   {p.web_name} ({p.position}): {p.projected_points:.1f} pts "
-              f"[{p.ci_80_low:.1f}-{p.ci_80_high:.1f}] conf={p.confidence:.0f}%")
-
-    # 6. Check confidence
+    # 6. Confidence: tiers are from a known set
     if result.confidence:
-        print(f"\n6. Confidence Distribution:")
-        tiers = {}
+        known_tiers = {"Very High", "High", "Medium", "Low", "Very Low"}
         for c in result.confidence:
-            tiers[c.confidence_tier] = tiers.get(c.confidence_tier, 0) + 1
-        for tier, count in sorted(tiers.items()):
-            print(f"   {tier}: {count} players")
+            assert c.confidence_tier in known_tiers, f"Unknown tier {c.confidence_tier}"
 
-    # 7. Check market signals
+    # 7. Market signals: sentiment values are valid
     if result.market_signals:
-        print(f"\n7. Market Signals:")
-        hot = [s for s in result.market_signals if s.market_sentiment == "hot"]
-        print(f"   Hot sentiment: {len(hot)} players")
+        for s in result.market_signals:
+            assert s.market_sentiment in {"hot", "warm", "cold", "neutral"}, (
+                f"Unknown sentiment {s.market_sentiment}"
+            )
 
-    # 8. Check opportunities
-    if result.undervalued:
-        print(f"\n8. Undervalued Players (top 3):")
-        for u in result.undervalued[:3]:
-            print(f"   {u.web_name}: score={u.opportunity_score:.0f}, "
-                  f"ppm={u.points_per_million:.2f}, reasons={u.undervaluation_reasons}")
+    # 8. Undervalued players carry a score
+    for u in result.undervalued:
+        assert u.opportunity_score > 0, "Opportunity score must be positive"
+        assert u.points_per_million >= 0, "Pts/£m must be non-negative"
+        assert u.web_name, "Undervalued player must have a name"
 
-    # 9. Check squad recommendation
+    # 9. Squad recommendation: transfers reference real player names
     if result.squad_recommendation:
         rec = result.squad_recommendation
-        print(f"\n9. Squad Recommendation:")
-        print(f"   Improvement: {rec.improvement:.1f} pts")
-        print(f"   Formation: {rec.suggested_formation}")
-        print(f"   Transfers: {len(rec.suggested_transfers)}")
+        assert rec.improvement >= 0, "Recommended improvement must be non-negative"
+        for t in rec.suggested_transfers:
+            assert isinstance(t, dict), "Each transfer must be a dict"
+            assert t.get("out") and t.get("in"), "Transfer must name both players"
 
-    # 10. Pipeline timing
-    print(f"\n10. Pipeline Duration: {result.pipeline_duration_ms:.0f}ms")
-
-    print("\n" + "=" * 60)
-    print("ALL TESTS PASSED!")
-    print("=" * 60)
+    # 10. Timing: pipeline finished, duration recorded
+    assert result.pipeline_duration_ms >= 0, "Pipeline duration must be recorded"
 
 
 if __name__ == "__main__":
     test_pipeline()
+    print("\nALL TESTS PASSED!")

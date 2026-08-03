@@ -15,16 +15,23 @@ import certifi
 import requests
 from urllib3.exceptions import InsecureRequestWarning
 
-from utils.constants import FPL_API_BASE_URL, FPL_USER_AGENT
+from utils.constants import (
+    FPL_API_ALLOW_INSECURE_SSL,
+    FPL_API_BACKOFF_BASE,
+    FPL_API_BASE_URL,
+    FPL_API_MAX_RETRIES,
+    FPL_API_TIMEOUT,
+    FPL_USER_AGENT,
+)
 
 warnings.filterwarnings("ignore", category=InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
 _HEADERS: dict[str, str] = {"User-Agent": FPL_USER_AGENT}
-_TIMEOUT: int = 30
-_MAX_RETRIES: int = 3
-_BACKOFF_BASE: float = 1.0
+_TIMEOUT: int = FPL_API_TIMEOUT
+_MAX_RETRIES: int = FPL_API_MAX_RETRIES
+_BACKOFF_BASE: float = FPL_API_BACKOFF_BASE
 
 _RETRYABLE_STATUSES: set[int] = {429, 500, 502, 503, 504}
 _RETRYABLE_EXCEPTIONS: tuple[type[Exception], ...] = (
@@ -33,7 +40,7 @@ _RETRYABLE_EXCEPTIONS: tuple[type[Exception], ...] = (
 )
 
 
-def fpl_get(endpoint: str) -> Any:  # noqa: ANN401
+def fpl_get(endpoint: str) -> Any:
     """Make a GET request to the FPL API and return parsed JSON.
 
     Retries on transient failures with exponential backoff:
@@ -54,8 +61,16 @@ def fpl_get(endpoint: str) -> Any:  # noqa: ANN401
                 verify=certifi.where(),
             )
         except requests.exceptions.SSLError:
+            if not FPL_API_ALLOW_INSECURE_SSL:
+                logger.error(
+                    "SSL verification failed for %s. Refusing to retry insecurely. "
+                    "Set FPL_API_ALLOW_INSECURE_SSL=true to permit (NOT recommended).",
+                    url,
+                )
+                raise
             logger.warning(
-                "SSL verification failed (%s), retrying without verification",
+                "SSL verification failed (%s); retrying without verification "
+                "(FPL_API_ALLOW_INSECURE_SSL=true)",
                 f"attempt {attempt + 1}/{_MAX_RETRIES + 1}",
             )
             try:

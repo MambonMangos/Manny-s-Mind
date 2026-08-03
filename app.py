@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import streamlit as st
 
-from components.theme import inject_theme, divider
 from components.sidebar import render_refresh_button
+from components.theme import divider, inject_theme
 from utils.helpers import ensure_data_loaded
+from utils.logging_setup import setup_logging
+
+setup_logging()
 
 st.set_page_config(
     page_title="About",

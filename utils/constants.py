@@ -10,18 +10,72 @@ To change weights, edit the YAML files — never edit this file.
 from __future__ import annotations
 
 import logging
+import os
+
+import utils.env  # noqa: F401  (load .env before reading environment variables)
 
 logger = logging.getLogger(__name__)
 
 
-# ── FPL Team ────────────────────────────────────────────────────────────────
+# ── Environment helpers ──────────────────────────────────────────────────────
+# Values are read from environment variables with safe defaults. This is the
+# "Environment Variables → config/ → Safe Defaults" hierarchy from Phase 1.
 
-TEAM_ID: int = 472930
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("Environment variable %s=%r is not an integer; using %d", name, raw, default)
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        logger.warning("Environment variable %s=%r is not a number; using %s", name, raw, default)
+        return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# ── FPL Team ────────────────────────────────────────────────────────────────
+# Override with FPL_TEAM_ID to support instances that are not Manny's team.
+
+TEAM_ID: int = _env_int("FPL_TEAM_ID", 472930)
 
 # ── FPL API ─────────────────────────────────────────────────────────────────
+# Override FPL_API_BASE_URL to point at a mirror or test stub.
 
-FPL_API_BASE_URL: str = "https://fantasy.premierleague.com/api"
-FPL_USER_AGENT: str = "MoneyballFPL/1.0"
+FPL_API_BASE_URL: str = os.getenv(
+    "FPL_API_BASE_URL", "https://fantasy.premierleague.com/api"
+)
+FPL_USER_AGENT: str = os.getenv("FPL_USER_AGENT", "MoneyballFPL/1.0")
+
+# HTTP client behaviour (used by services/api_client.py)
+FPL_API_TIMEOUT: int = _env_int("FPL_API_TIMEOUT", 30)
+FPL_API_MAX_RETRIES: int = _env_int("FPL_API_MAX_RETRIES", 3)
+FPL_API_BACKOFF_BASE: float = _env_float("FPL_API_BACKOFF_BASE", 1.0)
+
+# NEVER enable in production: permits retrying API calls with TLS verification
+# disabled. Default off — API failures are loud instead of silently insecure.
+FPL_API_ALLOW_INSECURE_SSL: bool = _env_bool("FPL_API_ALLOW_INSECURE_SSL", False)
+
+# ── Data freshness ───────────────────────────────────────────────────────────
+# How old FPL data must be before it is re-fetched (seconds).
+
+DATA_STALENESS_SECONDS: int = _env_int("DATA_STALENESS_SECONDS", 3600)
 
 # ── FPL Rules ───────────────────────────────────────────────────────────────
 
@@ -59,7 +113,7 @@ def _load_weights() -> dict[str, float]:
         if abs(sum(weights.values()) - 1.0) < 1e-6:
             return weights
         logger.warning("Loaded weights sum to %.4f, using defaults", sum(weights.values()))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - config load must never crash the app
         logger.warning("Failed to load weights from config: %s", e)
     return _DEFAULT_WEIGHTS
 

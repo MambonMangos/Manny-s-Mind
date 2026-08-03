@@ -1,0 +1,49 @@
+version: "3.0.0"
+created_at: "2026-08-02"
+description: "V3 value score weights — rebalanced towards xGI/90 and team strength"
+
+# V1 value score weights (kept for backwards compat, frozen)
+value_score:
+  minutes: 0.30
+  xgi_per_90: 0.32
+  value: 0.08
+  team_strength: 0.15
+  fixture: 0.08
+  ownership: 0.02
+  set_pieces: 0.05
+
+# Projection Engine weights (V2 canonical)
+projection:
+  # How much each component contributes to base points
+  minutes_weight: 0.25
+  attacking_weight: 0.35
+  defensive_weight: 0.15
+  bonus_weight: 0.10
+  # Modifier ranges applied on top of base
+  fixture_modifier_range: [-0.3, 0.3]
+  regression_modifier_range: [0.8, 1.2]
+  bookmaker_modifier_range: [0.9, 1.1]
+
+# Player Rating (now derived from projections, not value_score)
+player_rating:
+  projected_points: 0.40
+  minutes_reliability: 0.20
+  fixture_quality: 0.15
+  form: 0.15
+  value_for_money: 0.10
+
+# Transfer Decision
+transfer:
+  min_gain_threshold: 2.0
+  hit_worthwhile_margin: 1.0
+  hit_cost_per_transfer: 4
+  max_hit: 16
+
+# Opportunity Score
+opportunity:
+  projected_points: 0.35
+  budget_efficiency: 0.20
+  fixture_swing: 0.15
+  captain_potential: 0.10
+  price_trend: 0.10
+  differential: 0.10

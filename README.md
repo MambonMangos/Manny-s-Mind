@@ -1,100 +1,124 @@
-# Moneyball FPL
+# Manny's FPL House
 
 A data-driven Fantasy Premier League analytics platform built with Streamlit, SQLAlchemy, and Plotly.
 
-## Installation
+> **Status:** Phase 1 (deployment foundation) in progress. Prediction and validation behaviour are frozen — no weight tuning or model changes until after GW1.
+
+## Features
+
+- **Player Rankings** — filter, sort, and rank every FPL player by configurable value scores.
+- **Team Analysis** — aggregate stats across all 20 Premier League clubs.
+- **Team History** — season-by-season performance and gameweek breakdowns.
+- **Player Comparison** — head-to-head radar charts, fixture difficulty, and efficiency metrics.
+- **Assistant Manager** — squad evaluation, transfer recommendations, chip strategy, future planning.
+- **Model Analytics** — projection quality metrics, validation, experiment tracking.
+
+## Quick Start
+
+### Prerequisites
+
+- **Python 3.12+** (3.12 is tested)
+- No system libraries beyond a standard Python interpreter are required.
+
+### Install
 
 ```bash
-# Clone the repository
 git clone <repo-url>
 cd moneyball-fpl
 
-# Create a virtual environment
-python -m venv .venv
-source .venv/bin/activate   # macOS/Linux
-# .venv\Scripts\activate    # Windows
+# Create a virtual environment (uv recommended)
+uv venv .venv
+uv pip install -r requirements.txt
 
-# Install dependencies
+# Or with pip
+python -m venv .venv
+source .venv/bin/activate        # macOS/Linux
 pip install -r requirements.txt
 
-# Copy environment file
+# Developer dependencies (lint, tests)
+uv pip install -r requirements-dev.txt
+
+# Create your environment file
 cp .env.example .env
 ```
 
-## Running
+### Run
 
 ```bash
 streamlit run app.py
 ```
 
-The app will open in your browser at `http://localhost:8501`.
+Open **http://localhost:8501** in your browser.
 
-## Updating the JSON
+On first load the app initialises the SQLite database (`data/moneyball.db`) and fetches live data from the FPL API. Data is refreshed automatically when it is more than 1 hour old (configurable — see below).
 
-1. Visit [https://fantasy.premierleague.com/api/bootstrap-static.json](https://fantasy.premierleague.com/api/bootstrap-static.json)
-2. Save the JSON response to `data/bootstrap-static.json`
-3. Refresh the Streamlit app – data is loaded automatically on first run
+### Tests
+
+```bash
+pytest
+```
+
+## Configuration
+
+Configuration follows a strict hierarchy:
+
+```
+Environment Variables (.env)
+          ↓
+config/*.yaml  (versioned, active.yaml selects the active version)
+          ↓
+Safe Defaults  (utils/constants.py)
+```
+
+- **`.env`** — environment-specific values (database URL, team ID, API settings, logging). See `.env.example`.
+- **`config/`** — versioned YAML configs (weights, fixtures, minutes, prediction, bookmaker, features). The active version of each category is selected in `config/active.yaml`. Switch versions by editing that file — never overwrite old versions.
+
+See `docs/configuration.md` for the full reference.
 
 ## Database
 
-SQLite is used as the local data store. The database file is created at `data/moneyball.db` on first run.
+SQLite by default (`data/moneyball.db`). The schema is defined in `database/models.py` and managed with Alembic migrations in `alembic/`:
 
-### Tables
+```bash
+alembic upgrade head          # apply migrations
+alembic revision --autogenerate -m "describe change"   # create a new migration
+```
 
-| Table | Purpose |
+> The current database is at `data/moneyball.db`. A persistent volume must be provided in any containerised deployment — see `docs/deployment.md`.
+
+## Project Layout
+
+```
+├── app.py                    # Streamlit entry point
+├── pages/                    # Streamlit multi-page app
+├── components/               # UI components (theme, charts, tables, sidebar)
+├── database/                 # SQLAlchemy models, engine, CRUD
+├── services/                 # Data loading, scoring, team/fixture services
+├── engines/                  # Prediction & analysis engines
+├── features/                 # Feature Store (single source of truth for features)
+├── config/                   # Versioned YAML configuration
+├── alembic/                  # Database migrations
+├── utils/                    # Constants, config loader, env, logging
+├── docs/                     # Documentation package
+└── tests/                    # Test suite
+```
+
+## Documentation
+
+See the `docs/` directory for the full documentation package:
+
+| Guide | Purpose |
 |---|---|
-| `teams` | Club metadata and strength ratings |
-| `players` | Full player data from bootstrap-static |
-| `gameweeks` | Event metadata |
-| `player_gameweek_stats` | Per-player weekly stats (future) |
-| `price_history` | Daily price tracking (future) |
-| `snapshots` | Weekly full-pool snapshots (future) |
+| `docs/architecture.md` | System architecture and data flow |
+| `docs/stakeholders.md` | Workstream owners and routing decisions |
+| `docs/development.md` | Developer setup and contribution guide |
+| `docs/deployment.md` | Production deployment guide |
+| `docs/configuration.md` | Configuration reference |
+| `docs/database.md` | Database and migration guide |
+| `docs/prediction.md` | Prediction system architecture, engine ownership, tech debt |
+| `docs/validation.md` | Validation platform guide |
+| `docs/operations.md` | Operations manual and release checklist |
 
-## Architecture
+## License
 
-```
-moneyball-fpl/
-├── app.py                  # Streamlit entry-point
-├── database/
-│   ├── models.py           # SQLAlchemy ORM models
-│   ├── database.py         # Engine & session management
-│   └── crud.py             # Upsert / query helpers
-├── services/
-│   ├── data_loader.py      # JSON → SQLite pipeline
-│   ├── scoring.py          # Normalisation & composite scoring
-│   └── player_service.py   # High-level queries
-├── pages/
-│   ├── Player Rankings.py  # Main rankings page
-│   └── Team Analysis.py    # Team breakdown page
-├── components/
-│   ├── metrics.py          # KPI cards
-│   ├── sidebar.py          # Filter widgets
-│   └── tables.py           # Table renderers
-├── utils/
-│   └── helpers.py          # Shared utilities
-├── assets/                 # Static assets
-└── tests/                  # Test suite
-```
-
-### Scoring Weights
-
-| Component | Weight | Status |
-|---|---|---|
-| Minutes Played | 30% | Active |
-| xGI / 90 | 25% | Active |
-| Value (Pts/£m) | 15% | Active |
-| Team Strength | 10% | Active |
-| Fixture Difficulty | 10% | Placeholder |
-| Ownership | 5% | Active |
-| Set Pieces | 5% | Placeholder |
-
-Weights are defined as constants in `services/scoring.py` and can be edited independently.
-
-## Future Roadmap
-
-- **Captain Model** – expected points as captain
-- **Transfer Model** – value gain/loss on transfers
-- **Fixture Model** – full fixture difficulty ratings
-- **Weekly Snapshots** – historical trend tracking
-- **Price History** – track price rises and falls
-- **Prediction Engine** – projected points per gameweek
+MIT — see [LICENSE](LICENSE).

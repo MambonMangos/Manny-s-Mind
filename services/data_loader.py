@@ -12,10 +12,10 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from database.crud import upsert_players_bulk, upsert_teams_bulk, upsert_gameweeks_bulk
+from database.crud import upsert_gameweeks_bulk, upsert_players_bulk, upsert_teams_bulk
 from database.database import get_session, init_db
 from services.api_client import fpl_get
-from utils.constants import POSITION_MAP
+from utils.constants import DATA_STALENESS_SECONDS, POSITION_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +59,9 @@ _GW_FIELDS = (
     "highest_score", "chip_plays",
 )
 
-# Data is considered stale after this many seconds.
-STALENESS_THRESHOLD_SECONDS: int = 3600  # 1 hour
+# Data is considered stale after this many seconds (configurable via
+# DATA_STALENESS_SECONDS, default 1 hour).
+STALENESS_THRESHOLD_SECONDS: int = DATA_STALENESS_SECONDS
 
 
 class DataLoader:

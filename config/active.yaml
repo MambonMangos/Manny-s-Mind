@@ -2,7 +2,7 @@
 # When switching versions, update this file — never overwrite old versions.
 
 active_versions:
-  weights: weights_v2
+  weights: weights_v3
   fixtures: fixtures_v1
   minutes: minutes_v1
   prediction: prediction_v1

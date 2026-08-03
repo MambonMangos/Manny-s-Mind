@@ -20,6 +20,10 @@ data/bootstrap-static.json
 .env.local
 *.env
 
+# Logs
+*.log
+logs/
+
 # IDE
 .vscode/
 .idea/

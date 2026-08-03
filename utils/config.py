@@ -11,7 +11,6 @@ import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Any
 
 import yaml
 
@@ -46,7 +45,7 @@ def load_active_versions() -> dict[str, str]:
 
 def invalidate_cache() -> None:
     """Clear all cached configs. Call after config changes."""
-    global _cache, _active_cache
+    global _active_cache
     _cache.clear()
     _active_cache = None
 
