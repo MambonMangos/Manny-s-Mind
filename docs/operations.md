@@ -17,6 +17,8 @@
 
 - [ ] `ruff check .` passes.
 - [ ] `pytest` passes (full suite, including migration + smoke tests).
+- [ ] `pip check` passes (no broken/mismatched dependency resolution).
+- [ ] `pip-audit` reports no known vulnerabilities (or exceptions are documented).
 - [ ] New/updated configuration is versioned in `config/` and activated in `config/active.yaml`.
 - [ ] `.env.example` reflects any new environment variables.
 - [ ] Migration exists and is reviewed if the schema changed (`alembic revision --autogenerate`, manual review, then test).

@@ -8,12 +8,11 @@ from __future__ import annotations
 
 import logging
 import time
-import warnings
 from typing import Any
+from urllib.parse import urlparse
 
 import certifi
 import requests
-from urllib3.exceptions import InsecureRequestWarning
 
 from utils.constants import (
     FPL_API_ALLOW_INSECURE_SSL,
@@ -24,9 +23,12 @@ from utils.constants import (
     FPL_USER_AGENT,
 )
 
-warnings.filterwarnings("ignore", category=InsecureRequestWarning)
-
 logger = logging.getLogger(__name__)
+
+# Maximum number of seconds to sleep on a 429 response, even if the API
+# requests longer. Prevents an abusive/misconfigured Retry-After value from
+# hanging a worker indefinitely.
+_MAX_RETRY_AFTER_SECONDS = 60
 
 _HEADERS: dict[str, str] = {"User-Agent": FPL_USER_AGENT}
 _TIMEOUT: int = FPL_API_TIMEOUT
@@ -51,6 +53,12 @@ def fpl_get(endpoint: str) -> Any:
     exhausting all retries.
     """
     url = f"{FPL_API_BASE_URL}{endpoint}"
+
+    if urlparse(url).scheme != "https" and not FPL_API_ALLOW_INSECURE_SSL:
+        raise requests.exceptions.InvalidURL(
+            f"Refusing non-HTTPS request to {FPL_API_BASE_URL}. "
+            "Set FPL_API_ALLOW_INSECURE_SSL=true to permit (NOT recommended)."
+        )
 
     for attempt in range(_MAX_RETRIES + 1):
         try:
@@ -92,7 +100,7 @@ def fpl_get(endpoint: str) -> Any:
             raise
 
         if resp.status_code == 429 and attempt < _MAX_RETRIES:
-            retry_after = int(resp.headers.get("Retry-After", _BACKOFF_BASE * (2**attempt)))
+            retry_after = _parse_retry_after(resp.headers, attempt)
             logger.warning(
                 "Rate limited (attempt %d/%d), retrying in %ds",
                 attempt + 1,
@@ -124,3 +132,19 @@ def _wait_and_log(attempt: int) -> None:
         wait,
     )
     time.sleep(wait)
+
+
+def _parse_retry_after(headers: Any, attempt: int) -> int:
+    """Parse the Retry-After header safely, clamped to _MAX_RETRY_AFTER_SECONDS.
+
+    Falls back to exponential backoff when the header is missing or malformed.
+    """
+    default = int(_BACKOFF_BASE * (2**attempt))
+    raw = headers.get("Retry-After")
+    if raw is None:
+        return min(default, _MAX_RETRY_AFTER_SECONDS)
+    try:
+        return min(int(raw), _MAX_RETRY_AFTER_SECONDS)
+    except (TypeError, ValueError):
+        logger.warning("Malformed Retry-After header %r; using backoff", raw)
+        return min(default, _MAX_RETRY_AFTER_SECONDS)

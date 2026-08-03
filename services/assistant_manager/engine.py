@@ -148,8 +148,8 @@ def run_assistant(
             # Bank is what's left from 100m budget after building squad
             # This is approximate - actual bank depends on transfer history
             bank = max(0, 100.0 - total_squad_value)
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001 - fall back to 0 bank, never crash the report
+        logger.warning("Failed to calculate squad bank from squad data: %s", e)
 
     # ── Section 1: Squad Evaluation ───────────────────────────────────────
     logger.info("Running squad evaluation")

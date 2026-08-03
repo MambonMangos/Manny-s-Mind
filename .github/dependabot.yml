@@ -1,0 +1,15 @@
+# Dependency vulnerability monitoring (Phase 1 security).
+# Keeps pinned dependencies and GitHub Actions up to date with a weekly PR.
+# Scope to security/dependency updates only; runtime behaviour unchanged.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

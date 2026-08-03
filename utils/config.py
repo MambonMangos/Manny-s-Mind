@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from pathlib import Path
 
 import yaml
@@ -20,6 +21,10 @@ _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 _ACTIVE_FILE = _CONFIG_DIR / "active.yaml"
 _cache: dict[str, dict] = {}
 _active_cache: dict[str, str] | None = None
+
+# Versions become part of a filesystem path. Restrict to a safe character set
+# so a future caller can never turn a version string into a path traversal.
+_SAFE_VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 
 def _hash_config(config: dict) -> str:
@@ -84,7 +89,16 @@ def load_config(category: str, version: str | None = None) -> dict:
     if cache_key in _cache:
         return _cache[cache_key]
 
-    config_path = _CONFIG_DIR / category / f"{version}.yaml"
+    if not _SAFE_VERSION_RE.match(version):
+        raise ValueError(f"Invalid config version: {version!r}")
+
+    category_dir = _CONFIG_DIR / category
+    if not category_dir.is_dir():
+        raise FileNotFoundError(f"No config category: {category}")
+
+    config_path = (category_dir / f"{version}.yaml").resolve()
+    if not str(config_path).startswith(str(category_dir.resolve())):
+        raise ValueError(f"Config path escapes category directory: {config_path}")
     if not config_path.exists():
         raise FileNotFoundError(f"Config not found: {config_path}")
 

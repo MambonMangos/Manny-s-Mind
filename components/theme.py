@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-import streamlit as st
+from html import escape
+
 import plotly.io as pio
+import streamlit as st
 
 # ---------------------------------------------------------------------------
 # Semantic color roles
@@ -81,7 +83,8 @@ pio.templates.default = "mannys_dark"
 _GLOBAL_CSS = """
 <style>
 /* ── Base ────────────────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+/* Fonts fall back to system stacks — no external font CDN dependency
+   (privacy: no third-party requests from visitors' browsers). */
 
 :root {
     --bg-primary: #09090b;
@@ -402,8 +405,10 @@ def inject_theme() -> None:
 
 def page_header(title: str, subtitle: str = "") -> None:
     """Render a consistent page header with title and optional subtitle."""
+    title = escape(str(title))
     st.markdown(f'<div class="page-title fade-in">{title}</div>', unsafe_allow_html=True)
     if subtitle:
+        subtitle = escape(str(subtitle))
         st.markdown(f'<div class="page-subtitle fade-in fade-in-delay-1">{subtitle}</div>', unsafe_allow_html=True)
 
 

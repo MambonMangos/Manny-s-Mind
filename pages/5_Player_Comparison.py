@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from html import escape
+
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -103,11 +105,14 @@ _colors = ["#6366f1", "#06b6d4", "#34d399", "#fbbf24", "#f87171"]
 for i, (_, row) in enumerate(comp_df.iterrows()):
     with card_cols[i]:
         color = _colors[i % len(_colors)]
+        web_name = escape(str(row["web_name"]))
+        team_short = escape(str(row["team_short"]))
+        position = escape(str(row["position"]))
         st.markdown(
             f"""
             <div class="card" style="border-left: 3px solid {color}; text-align:center;">
-                <div style="font-size:1.1rem; font-weight:700; color:#fafafa;">{row['web_name']}</div>
-                <div style="font-size:0.8rem; color:#71717a; margin-bottom:0.5rem;">{row['team_short']} · {row['position']}</div>
+                <div style="font-size:1.1rem; font-weight:700; color:#fafafa;">{web_name}</div>
+                <div style="font-size:0.8rem; color:#71717a; margin-bottom:0.5rem;">{team_short} · {position}</div>
                 <div style="font-family:'JetBrains Mono',monospace; font-size:1.4rem; font-weight:700; color:{color};">
                     £{row['price']:.1f}m
                 </div>

@@ -87,10 +87,10 @@ def ingest_gameweek_results(
     try:
         raw = fpl_get("/bootstrap-static/")
         players_raw = {p["id"]: p for p in raw.get("elements", [])}
-    except Exception as e:
+    except Exception:
         report.status = "error"
-        report.error_message = f"Failed to fetch FPL API data: {e}"
-        logger.error("Result ingestion failed: %s", e)
+        report.error_message = "Failed to fetch FPL API data. See application logs."
+        logger.exception("Result ingestion failed")
         return report
 
     # 3. Build actual points dict: player_id → event_points
