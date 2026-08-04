@@ -1,21 +1,33 @@
-"""Assistant Manager — intelligent FPL decision-support system."""
+"""Assistant Manager — intelligent FPL decision-support system.
+
+Migrated to the design-system domain components (components/domain). This
+page only adapts backend objects into domain dataclasses and calls the
+``render_*`` helpers — it never builds recommendation markup by hand.
+"""
 
 from __future__ import annotations
 
+from html import escape
+
+import pandas as pd
 import streamlit as st
 
-from components.theme import inject_theme, page_header, divider, section_label
-from components.sidebar import render_refresh_button
-from components.recommendation_card import (
-    render_transfer_recommendation,
-    render_chip_recommendation,
-    render_squad_rating,
+from components.domain import (
+    ChipCard,
+    PlayerRef,
+    TransferCard,
+    TrustSection,
+    render_chip_card,
+    render_transfer_card,
 )
+from components.domain.squad import render_squad_rating, render_squad_summary_cards
+from components.sidebar import render_refresh_button
+from components.theme import divider, inject_theme, page_header, section_label
+from components.ui import render_error, render_info, render_success, render_warning
 from database.database import get_session
-from services.player_service import get_scored_players
 from services.assistant_manager.engine import run_assistant
-from utils.helpers import ensure_data_loaded
 from utils.constants import TEAM_ID
+from utils.helpers import ensure_data_loaded
 
 st.set_page_config(page_title="Assistant Manager", layout="wide")
 inject_theme()
@@ -45,7 +57,7 @@ finally:
     session.close()
 
 if report.squad_evaluation is None or not report.squad_evaluation.players:
-    st.info(
+    render_info(
         "No squad data available yet. "
         "The Assistant Manager needs live gameweek data to analyze your squad. "
         "Once GW1 kicks off and you have registered your team, this page will activate."
@@ -53,6 +65,56 @@ if report.squad_evaluation is None or not report.squad_evaluation.players:
     st.stop()
 
 squad_eval = report.squad_evaluation
+
+
+# ---------------------------------------------------------------------------
+# Adapters: backend objects -> domain dataclasses
+# ---------------------------------------------------------------------------
+
+def _to_player_ref(player) -> PlayerRef:
+    return PlayerRef(
+        player_id=player.player_id,
+        web_name=player.web_name,
+        team_short=player.team_short,
+        position=player.position,
+        price=player.price,
+    )
+
+
+def _to_transfer_card(rec) -> TransferCard:
+    return TransferCard(
+        out=_to_player_ref(rec.player_out),
+        in_=_to_player_ref(rec.player_in),
+        price_difference=rec.price_difference,
+        expected_points_gained=rec.expected_points_gained,
+        value_score_difference=rec.value_score_difference,
+        fixture_improvement=rec.fixture_improvement,
+        minutes_projection=rec.minutes_projection,
+        ownership_difference=rec.ownership_difference,
+        risk_level=str(rec.risk_level).lower(),
+        confidence_pct=rec.confidence_rating,
+        rank=rec.rank,
+        reasoning=rec.reasoning,
+        trust=TrustSection(
+            confidence_pct=rec.confidence_rating,
+            reasoning=[rec.reasoning] if rec.reasoning else [],
+        ),
+    )
+
+
+def _to_chip_card(chip) -> ChipCard:
+    return ChipCard(
+        chip_name=chip.chip_name,
+        chip_label=chip.chip_label,
+        should_play=chip.should_play,
+        confidence_pct=chip.confidence,
+        best_gameweek=chip.best_gameweek,
+        projected_gain=chip.projected_gain,
+        reasoning=chip.reasoning,
+        available=chip.available,
+        used=chip.used,
+    )
+
 
 # ---------------------------------------------------------------------------
 # Executive Summary
@@ -69,24 +131,11 @@ with col2:
     st.markdown(report.executive_summary)
 
 with col3:
-    st.markdown(
-        f"""
-        <div class="card" style="text-align: center;">
-            <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #71717a; margin-bottom: 0.5rem;">
-                Squad Value
-            </div>
-            <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 700; color: #fafafa;">
-                £{squad_eval.total_value:.1f}m
-            </div>
-            <div style="font-size: 0.8rem; color: #71717a; margin-top: 0.25rem;">
-                Bank: £{squad_eval.bank:.1f}m
-            </div>
-            <div style="font-size: 0.8rem; color: #71717a;">
-                Free Transfers: {squad_eval.free_transfers}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    render_squad_summary_cards(
+        total_value=squad_eval.total_value,
+        bank=squad_eval.bank,
+        free_transfers=squad_eval.free_transfers,
+        saved_transfers=squad_eval.saved_transfers,
     )
 
 divider()
@@ -99,9 +148,9 @@ section_label("Transfer Recommendations")
 
 if report.transfer_plan and report.transfer_plan.transfers:
     for rec in report.transfer_plan.transfers:
-        render_transfer_recommendation(rec)
+        render_transfer_card(_to_transfer_card(rec))
 else:
-    st.info("No transfer recommendations at this time.")
+    render_info("No transfer recommendations at this time.")
 
 divider()
 
@@ -115,9 +164,9 @@ if report.chip_recommendations:
     chip_cols = st.columns(4)
     for i, chip in enumerate(report.chip_recommendations):
         with chip_cols[i]:
-            render_chip_recommendation(chip)
+            render_chip_card(_to_chip_card(chip))
 else:
-    st.info("No chip recommendations available.")
+    render_info("No chip recommendations available.")
 
 divider()
 
@@ -142,7 +191,6 @@ for p in squad_eval.players:
         "Rating": f"{p.squad_rating:.0f}/100",
     })
 
-import pandas as pd
 player_df = pd.DataFrame(player_data)
 st.dataframe(player_df, use_container_width=True, hide_index=True)
 
@@ -153,17 +201,17 @@ with col_strengths:
     st.markdown("**Strengths**")
     if squad_eval.strengths:
         for s in squad_eval.strengths[:10]:
-            st.markdown(f"- {s}")
+            st.markdown(f"- {escape(s)}")
     else:
-        st.info("No strengths identified.")
+        render_info("No strengths identified.")
 
 with col_weaknesses:
     st.markdown("**Weaknesses**")
     if squad_eval.weaknesses:
         for w in squad_eval.weaknesses[:10]:
-            st.markdown(f"- {w}")
+            st.markdown(f"- {escape(w)}")
     else:
-        st.info("No weaknesses identified.")
+        render_info("No weaknesses identified.")
 
 # Injuries and Risks
 if squad_eval.injuries or squad_eval.rotation_risks:
@@ -173,12 +221,12 @@ if squad_eval.injuries or squad_eval.rotation_risks:
     if squad_eval.injuries:
         st.markdown("**Injuries/Doubts**")
         for i in squad_eval.injuries:
-            st.warning(i)
+            render_warning(i)
 
     if squad_eval.rotation_risks:
         st.markdown("**Rotation Risks**")
         for r in squad_eval.rotation_risks:
-            st.warning(r)
+            render_warning(r)
 
 # Fixture Analysis
 if squad_eval.excellent_fixtures or squad_eval.poor_fixtures:
@@ -190,12 +238,12 @@ if squad_eval.excellent_fixtures or squad_eval.poor_fixtures:
     with col_easy:
         st.markdown("**Favorable Fixtures**")
         for f in squad_eval.excellent_fixtures:
-            st.success(f)
+            render_success(f)
 
     with col_hard:
         st.markdown("**Difficult Fixtures**")
         for f in squad_eval.poor_fixtures:
-            st.error(f)
+            render_error(f)
 
 # Price Movers
 if squad_eval.price_risers or squad_eval.price_fallers:
@@ -207,9 +255,9 @@ if squad_eval.price_risers or squad_eval.price_fallers:
     with col_risers:
         st.markdown("**Price Rises**")
         for r in squad_eval.price_risers:
-            st.success(r)
+            render_success(r)
 
     with col_fallers:
         st.markdown("**Price Falls**")
         for f in squad_eval.price_fallers:
-            st.error(f)
+            render_error(f)

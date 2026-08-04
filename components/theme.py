@@ -1,4 +1,14 @@
-"""Global theme – CSS overrides and Plotly dark template for Manny's FPL House."""
+"""Global theme – CSS overrides and Plotly dark template for Manny's FPL House.
+
+Colours, typography, spacing, radii and breakpoints are defined once in
+``components/design_tokens.py``. This module converts those tokens into the
+CSS custom properties injected on every page and keeps the legacy public API
+(colour constants + helpers) so existing pages and components keep working.
+
+The ``:root`` custom-property block is generated from tokens via
+``build_css_variables()``; the generated values are byte-identical to the
+pre-refactor hardcoded block (asserted in tests/test_ui_components.py).
+"""
 
 from __future__ import annotations
 
@@ -7,30 +17,49 @@ from html import escape
 import plotly.io as pio
 import streamlit as st
 
+from components import ui as _ui
+from components.design_tokens import (
+    COLOR_ACCENT_AMBER,
+    COLOR_ACCENT_CYAN,
+    COLOR_ACCENT_INDIGO,
+    COLOR_MARKET_BUY,
+    COLOR_MARKET_FALLER,
+    COLOR_MARKET_RISER,
+    COLOR_MARKET_SELL,
+    COLOR_QUALITY_FAIR,
+    COLOR_QUALITY_GOOD,
+    COLOR_QUALITY_POOR,
+    COLOR_RISK_HIGH,
+    COLOR_RISK_LOW,
+    COLOR_RISK_MED,
+    FONT_FAMILY,
+    build_css_variables,
+    color,
+)
+
 # ---------------------------------------------------------------------------
-# Semantic color roles
+# Semantic color roles (re-exported from design tokens)
 #   - Market:  indigo/purple (transfers, ownership)
 #   - Risk:    amber gradient (risk severity)
 #   - Quality: emerald gradient (accuracy, performance)
 #   - Fixture: green -> red (difficulty)
 # ---------------------------------------------------------------------------
 
-COLOR_MARKET_BUY = "#818cf8"    # indigo-400
-COLOR_MARKET_SELL = "#a78bfa"   # violet-400
-COLOR_MARKET_RISER = "#34d399"  # emerald-400
-COLOR_MARKET_FALLER = "#fb7185" # rose-400
-
-COLOR_RISK_LOW = "#34d399"
-COLOR_RISK_MED = "#fbbf24"
-COLOR_RISK_HIGH = "#f87171"
-
-COLOR_QUALITY_GOOD = "#34d399"
-COLOR_QUALITY_FAIR = "#fbbf24"
-COLOR_QUALITY_POOR = "#f87171"
-
-COLOR_ACCENT_INDIGO = "#6366f1"
-COLOR_ACCENT_CYAN = "#06b6d4"
-COLOR_ACCENT_AMBER = "#f59e0b"
+__all__ = [
+    "COLOR_ACCENT_AMBER",
+    "COLOR_ACCENT_CYAN",
+    "COLOR_ACCENT_INDIGO",
+    "COLOR_MARKET_BUY",
+    "COLOR_MARKET_FALLER",
+    "COLOR_MARKET_RISER",
+    "COLOR_MARKET_SELL",
+    "COLOR_QUALITY_FAIR",
+    "COLOR_QUALITY_GOOD",
+    "COLOR_QUALITY_POOR",
+    "COLOR_RISK_HIGH",
+    "COLOR_RISK_LOW",
+    "COLOR_RISK_MED",
+]
 
 # ---------------------------------------------------------------------------
 # Plotly dark template matching our color scheme
@@ -38,37 +67,45 @@ COLOR_ACCENT_AMBER = "#f59e0b"
 
 _MANNYS_TEMPLATE = {
     "layout": {
-        "paper_bgcolor": "#18181b",
-        "plot_bgcolor": "#18181b",
-        "font": {"family": "-apple-system, BlinkMacSystemFont, Inter, sans-serif", "color": "#a1a1aa", "size": 12},
-        "title": {"font": {"size": 15, "color": "#fafafa", "family": "-apple-system, BlinkMacSystemFont, Inter, sans-serif"}, "x": 0.02, "y": 0.97},
+        "paper_bgcolor": color("surface_card"),
+        "plot_bgcolor": color("surface_card"),
+        "font": {"family": FONT_FAMILY, "color": color("text_secondary"), "size": 12},
+        "title": {"font": {"size": 15, "color": color("text_primary"), "family": FONT_FAMILY}, "x": 0.02, "y": 0.97},
         "xaxis": {
-            "gridcolor": "#27272a",
-            "zerolinecolor": "#27272a",
-            "linecolor": "#3f3f46",
-            "tickfont": {"size": 11, "color": "#71717a"},
-            "title": {"font": {"size": 12, "color": "#a1a1aa"}},
+            "gridcolor": color("surface_input"),
+            "zerolinecolor": color("surface_input"),
+            "linecolor": color("border"),
+            "tickfont": {"size": 11, "color": color("text_muted")},
+            "title": {"font": {"size": 12, "color": color("text_secondary")}},
         },
         "yaxis": {
-            "gridcolor": "#27272a",
-            "zerolinecolor": "#27272a",
-            "linecolor": "#3f3f46",
-            "tickfont": {"size": 11, "color": "#71717a"},
-            "title": {"font": {"size": 12, "color": "#a1a1aa"}},
+            "gridcolor": color("surface_input"),
+            "zerolinecolor": color("surface_input"),
+            "linecolor": color("border"),
+            "tickfont": {"size": 11, "color": color("text_muted")},
+            "title": {"font": {"size": 12, "color": color("text_secondary")}},
         },
         "legend": {
             "bgcolor": "rgba(0,0,0,0)",
-            "font": {"size": 11, "color": "#a1a1aa"},
+            "font": {"size": 11, "color": color("text_secondary")},
             "orientation": "h",
             "y": -0.15,
         },
         "margin": {"l": 50, "r": 20, "t": 40, "b": 50},
         "hoverlabel": {
-            "bgcolor": "#27272a",
-            "bordercolor": "#3f3f46",
-            "font": {"size": 12, "color": "#fafafa", "family": "-apple-system, BlinkMacSystemFont, Inter, sans-serif"},
+            "bgcolor": color("surface_input"),
+            "bordercolor": color("border"),
+            "font": {"size": 12, "color": color("text_primary"), "family": FONT_FAMILY},
         },
-        "colorway": ["#6366f1", "#06b6d4", "#34d399", "#fbbf24", "#f87171", "#8b5cf6", "#ec4899"],
+        "colorway": [
+            color("trust_primary"),
+            color("accent_cyan"),
+            color("success"),
+            color("warning"),
+            color("danger"),
+            color("evidence"),
+            color("pink_500"),
+        ],
     }
 }
 
@@ -80,41 +117,13 @@ pio.templates.default = "mannys_dark"
 # Global CSS - injected once per page
 # ---------------------------------------------------------------------------
 
-_GLOBAL_CSS = """
+_BASE_CSS = """
 <style>
 /* ── Base ────────────────────────────────────────────────────────────── */
 /* Fonts fall back to system stacks — no external font CDN dependency
    (privacy: no third-party requests from visitors' browsers). */
 
-:root {
-    --bg-primary: #09090b;
-    --bg-secondary: #18181b;
-    --bg-tertiary: #27272a;
-    --bg-elevated: #1c1c24;
-    --border: #3f3f46;
-    --border-subtle: #27272a;
-    --text-primary: #fafafa;
-    --text-secondary: #a1a1aa;
-    --text-muted: #71717a;
-
-    /* Semantic colors */
-    --color-market-buy: #818cf8;
-    --color-market-sell: #a78bfa;
-    --color-market-riser: #34d399;
-    --color-market-faller: #fb7185;
-    --color-risk-low: #34d399;
-    --color-risk-med: #fbbf24;
-    --color-risk-high: #f87171;
-    --color-quality-good: #34d399;
-    --color-quality-fair: #fbbf24;
-    --color-quality-poor: #f87171;
-    --color-accent-indigo: #6366f1;
-    --color-accent-cyan: #06b6d4;
-    --color-accent-amber: #f59e0b;
-
-    --radius: 12px;
-    --radius-sm: 8px;
-}
+__DESIGN_TOKENS__
 
 /* Fix Streamlit defaults */
 .stApp {
@@ -249,6 +258,10 @@ section[data-testid="stSidebar"] .stMarkdown h3 {
 .metric-delta.positive { color: var(--color-quality-good); }
 .metric-delta.negative { color: var(--color-quality-poor); }
 
+.metric-value.rating-good { color: var(--color-quality-good); }
+.metric-value.rating-fair { color: var(--color-quality-fair); }
+.metric-value.rating-poor { color: var(--color-quality-poor); }
+
 /* ── Tags / badges ──────────────────────────────────────────────────── */
 .tag {
     display: inline-block;
@@ -338,6 +351,63 @@ section[data-testid="stSidebar"] .stMarkdown h3 {
     }
 }
 
+/* ── Domain components ───────────────────────────────────────────────── */
+.projection-points {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.1;
+    margin: 0.5rem 0 0.25rem;
+}
+
+.projection-ci {
+    margin-bottom: 0.75rem;
+}
+
+.trust-section {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.trust-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.4rem;
+}
+
+.trust-note {
+    margin-top: 0.35rem;
+    line-height: 1.5;
+}
+
+.trust-reasons {
+    margin: 0.25rem 0 0;
+    padding-left: 1.25rem;
+}
+
+.transfer-arrow {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    margin: 0.5rem 0;
+    text-align: center;
+}
+
+.transfer-in {
+    margin-top: 0.15rem;
+}
+
+.chip-icon {
+    font-size: 1.1rem;
+}
+
+.chip-action {
+    font-weight: 600;
+}
+
 /* ── Scrollbar ───────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -392,6 +462,8 @@ section[data-testid="stSidebar"] .stMarkdown h3 {
 </style>
 """
 
+_GLOBAL_CSS = _BASE_CSS.replace("__DESIGN_TOKENS__", build_css_variables())
+
 
 def inject_theme() -> None:
     """Inject global CSS into the current Streamlit page. Call once per page."""
@@ -414,12 +486,12 @@ def page_header(title: str, subtitle: str = "") -> None:
 
 def section_label(text: str) -> None:
     """Render an uppercase section label."""
-    st.markdown(f'<div class="section-label">{text}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-label">{escape(str(text))}</div>', unsafe_allow_html=True)
 
 
 def section_title(text: str) -> None:
     """Render a section title."""
-    st.markdown(f'<div class="section-title">{text}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-title">{escape(str(text))}</div>', unsafe_allow_html=True)
 
 
 def divider() -> None:
@@ -428,13 +500,16 @@ def divider() -> None:
 
 
 def position_tag(pos: str) -> str:
-    """Return an HTML badge for a player position."""
-    css_class = f"tag-{pos.lower()}"
-    return f'<span class="tag {css_class}">{pos}</span>'
+    """Return an HTML badge for a player position.
+
+    Delegates to :func:`components.ui.badges.badge_position` — the single
+    implementation of position badges.
+    """
+    return _ui.badges.badge_position(pos)
 
 
 # ---------------------------------------------------------------------------
-# Issue 3: Empty state component
+# Empty state component (delegated to the design-system implementation)
 # ---------------------------------------------------------------------------
 
 
@@ -446,20 +521,17 @@ def render_empty_state(
     action_key: str | None = None,
 ) -> None:
     """Render a consistent empty state with optional action button."""
-    html = f"""
-    <div class="empty-state fade-in">
-        <div class="empty-state-icon">{icon}</div>
-        <div class="empty-state-title">{title}</div>
-        <div class="empty-state-message">{message}</div>
-    </div>
-    """
-    st.markdown(html, unsafe_allow_html=True)
-    if action_label and action_key:
-        st.button(action_label, key=action_key, use_container_width=False)
+    _ui.states.render_empty_state(
+        icon=icon,
+        title=title,
+        message=message,
+        action_label=action_label or "",
+        action_key=action_key or "",
+    )
 
 
 # ---------------------------------------------------------------------------
-# Issue 9: Responsive metric grid
+# Responsive metric grid
 # ---------------------------------------------------------------------------
 
 
@@ -469,7 +541,7 @@ def render_metric_grid(columns: int = 4) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Issue 5: Chart styling helper — apply consistent layout to any figure
+# Chart styling helper — apply consistent layout to any figure
 # ---------------------------------------------------------------------------
 
 
@@ -480,7 +552,7 @@ def style_chart(fig, height: int = 380, margin: dict | None = None) -> None:
     """
     fig.update_layout(
         height=height,
-        margin=margin or dict(l=10, r=20, t=10, b=10),
+        margin=margin or {"l": 10, "r": 20, "t": 10, "b": 10},
         hovermode="x unified",
     )
     fig.update_xaxes(gridcolor="#27272a", zerolinecolor="#27272a")
@@ -491,7 +563,7 @@ def style_px_chart(fig, height: int = 380, **extra) -> None:
     """Apply consistent styling to a plotly express figure (px.*)."""
     fig.update_layout(
         height=height,
-        margin=dict(l=10, r=20, t=30, b=10),
+        margin={"l": 10, "r": 20, "t": 30, "b": 10},
         hovermode="x unified",
         **extra,
     )

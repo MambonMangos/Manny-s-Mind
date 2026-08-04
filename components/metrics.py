@@ -1,32 +1,18 @@
-"""Reusable metric cards for the Streamlit dashboard."""
+"""Reusable metric cards for the Streamlit dashboard.
+
+Legacy facade: delegates to the design-system primitives in
+:mod:`components.ui` so there is a single implementation. New code should
+import from ``components.ui`` or ``components.domain`` directly.
+"""
 
 from __future__ import annotations
 
 import streamlit as st
 
-
-def render_metric_card(label: str, value: str, delta: str = "", positive: bool = True, delay: int = 0) -> None:
-    """Render a single styled metric card via HTML."""
-    delay_class = f" fade-in-delay-{delay}" if delay else ""
-    delta_html = ""
-    if delta:
-        css = "positive" if positive else "negative"
-        arrow = "+" if positive and not delta.startswith("-") and not delta.startswith("+") else ""
-        delta_html = f'<div class="metric-delta {css}">{arrow}{delta}</div>'
-
-    st.markdown(
-        f"""
-        <div class="metric-card fade-in{delay_class}">
-            <div class="metric-label">{label}</div>
-            <div class="metric-value">{value}</div>
-            {delta_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+from components.ui.cards import render_metric_card
 
 
-def render_top_metrics(df) -> None:  # noqa: ANN001
+def render_top_metrics(df) -> None:
     """Display the top-level KPI cards."""
     if df.empty:
         st.info("No player data available.")
