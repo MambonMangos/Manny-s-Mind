@@ -180,8 +180,8 @@ class FeatureStore:
         )
         f["minutes_fraction"] = df["minutes_fraction"].fillna(0)
         f["starts_rate"] = np.where(
-            df["minutes_season"] > 0,
-            df["starts"].fillna(0) / np.maximum(df["minutes_season"] / 90, 1),
+            f["minutes_season"] > 0,
+            df["starts"].fillna(0) / np.maximum(f["minutes_season"] / 90, 1),
             0.0,
         )
         f["minutes_reliable"] = (f["minutes_fraction"] >= 60).astype(float)

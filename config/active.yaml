@@ -6,5 +6,7 @@ active_versions:
   fixtures: fixtures_v1
   minutes: minutes_v1
   prediction: prediction_v1
+  expected_points: expected_points_v1
+  expected_minutes: expected_minutes_v1
   bookmaker: bookmaker_v1
   features: features_v1

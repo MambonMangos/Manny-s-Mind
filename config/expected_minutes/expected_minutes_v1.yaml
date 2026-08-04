@@ -1,0 +1,50 @@
+version: "1.0.0"
+created_at: "2026-08-04"
+description: "Expected Minutes engine parameters"
+
+# Expected minutes if starting, by position (blended with player history).
+# GKP/DEF nearly always complete matches; attackers are subbed more often.
+minutes_if_starting:
+  GKP: 90
+  DEF: 88
+  MID: 78
+  FWD: 75
+
+# Start probability model.
+start_probability:
+  unavailable_statuses: ["i", "s", "u"]   # injured/suspended/unavailable → 0
+  doubtful_status: "d"
+  doubtful_prob: 0.40
+  history_weight: 0.60       # weight on observed starts_rate
+  chance_of_playing_weight: 0.40   # weight on chance_of_playing_next_round
+  high_form_threshold: 6.0
+  high_form_boost: 0.05
+  low_form_threshold: 2.0
+  low_form_penalty: 0.05
+  max_start_prob: 0.97
+  min_start_prob: 0.05
+
+# Substitution model: reduces expected minutes given a start.
+substitution:
+  baseline_risk: 0.10
+  high_minutes_threshold: 78
+  risk_if_expected_full: 0.25      # expected to play ~90 → more likely to be subbed
+  typical_sub_minute: 65           # expected minute of substitution
+
+# Historical minutes blend.
+history:
+  min_starts_for_history: 3        # starts needed before history is trusted
+  history_blend: 0.6               # weight on historical minutes-per-start
+  base_blend: 0.4                  # weight on positional minutes_if_starting
+
+# Confidence tiers based on data availability.
+confidence:
+  no_data: 25
+  limited_data: 45
+  moderate_data: 65
+  good_data: 80
+
+# Classification thresholds for rotation risk.
+rotation_risk:
+  high_threshold: 0.30
+  medium_threshold: 0.60

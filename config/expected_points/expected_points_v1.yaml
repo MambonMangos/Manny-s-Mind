@@ -1,0 +1,99 @@
+version: "1.0.0"
+created_at: "2026-08-04"
+description: "Expected Points (xPts/90) engine parameters"
+
+# Position-specific FPL scoring values (mirror prediction_v1.yaml, kept local so
+# this config is self-contained and independently versioned).
+position_values:
+  GKP:
+    goal: 10
+    assist: 3
+    clean_sheet: 1
+    save_per_2: 1        # 1 point per 2 saves
+    penalty_save: 3
+    yellow_card: -1
+    red_card: -3
+    own_goal: -2
+  DEF:
+    goal: 6
+    assist: 3
+    clean_sheet: 4
+    yellow_card: -1
+    red_card: -3
+    own_goal: -2
+  MID:
+    goal: 5
+    assist: 3
+    clean_sheet: 1
+    yellow_card: -1
+    red_card: -3
+    own_goal: -2
+  FWD:
+    goal: 4
+    assist: 3
+    clean_sheet: 0
+    yellow_card: -1
+    red_card: -3
+    own_goal: -2
+
+# Clean-sheet probability model: anchored to league-average team xGC per 90.
+#   cs_prob = clip((league_avg_xgc_per_90 - xgc_per_90) / league_avg_xgc_per_90
+#                  * 0.5, 0, max_clean_sheet_prob)
+# An average team therefore sits near 0.25 (roughly the FPL average CS rate).
+clean_sheet:
+  league_avg_xgc_per_90: 1.4
+  cs_rate_multiplier: 0.5
+  max_clean_sheet_prob: 0.6
+  min_clean_sheet_prob: 0.0
+  team_strength_anchor: 1000
+
+# Bonus proxy: expected BPS per 90 converts to expected bonus points.
+#   expected_bonus = clip(bps_per_90 / bps_per_bonus_point, 0, max_bonus_points)
+bonus:
+  bps_per_bonus_point: 160.0
+  max_bonus_points: 3.0
+
+# Saves (GKP only): 1 point per 2 saves.
+saves:
+  saves_per_bonus_point: 2.0     # points = saves_per_90 / this
+  max_saves_per_90: 6.0
+
+# Card deductions from historical yellow/red card rates (per 90).
+cards:
+  yellow_card_rate_weight: 1.0
+  red_card_rate_weight: 1.0
+
+# Set-piece role bonuses added to xPts/90 (designated primary takers).
+set_pieces:
+  penalty_taker_bonus: 0.25
+  fk_taker_bonus: 0.05
+  corner_taker_bonus: 0.05
+
+# Fixture difficulty multiplier on goal/assist rates.
+#   mult = (5 - difficulty) / 4, floored at floor_multiplier.
+fixture:
+  base_difficulty: 3
+  floor_multiplier: 0.5
+
+# Confidence interval z-scores (same convention as prediction_v1.yaml).
+confidence_intervals:
+  ci_80_z: 1.28
+  ci_95_z: 1.96
+
+# Variance sources for the compositor (rate + minutes + base randomness).
+variance_sources:
+  rate: 0.40      # xPts/90 estimation uncertainty
+  minutes: 0.35   # expected-minutes estimation uncertainty
+  base: 0.25      # inherent football randomness
+
+# Data quality tiers → xPts confidence and CI width multiplier.
+confidence:
+  no_data: 20
+  limited_data: 40
+  moderate_data: 60
+  good_data: 75
+  quality_multipliers:
+    none: 1.5
+    limited: 1.2
+    moderate: 1.0
+    good: 0.8

@@ -36,6 +36,10 @@ Every output is written to the **append-only prediction ledger** (`prediction_ve
 | Feature Store | `features/store.py` | Derived features (single source of truth) | V2 |
 | Minutes Engine | `engines/minutes_engine.py` | Minutes projection + rotation risk | V2 |
 | Projection Engine | `engines/projection_engine.py` | Points projection + CIs | V2 |
+| Expected Points Engine | `engines/expected_points_engine.py` | xPts/90 rate model (V3) | V3 candidate |
+| Expected Minutes Engine | `engines/expected_minutes_engine.py` | Probability-weighted expected minutes (V3) | V3 candidate |
+| Expected Projection Engine | `engines/expected_projection_engine.py` | V3 compositor: xPts = xPts/90 × minutes/90 | V3 candidate |
+| Expected Pipeline | `services/expected_pipeline.py` | Side-by-side V2-vs-V3 comparison + persistence | V3 candidate |
 | Regression Engine | `engines/regression_engine.py` | Over/underperformance detection | V2 |
 | Bookmaker Engine | `engines/bookmaker_engine.py` | Odds integration | V2 |
 | Confidence Engine | `engines/confidence_engine.py` | Uncertainty quantification | V2 |
@@ -49,6 +53,10 @@ Every output is written to the **append-only prediction ledger** (`prediction_ve
 | Market Engine | `engines/market_engine.py` | Transfers, ownership, price trends | **V1 (legacy)** |
 | Prediction Engine | `engines/prediction_engine.py` | V1 points/minutes projection | **V1 (legacy)** |
 | Captain Engine | `engines/captain_engine.py` | Captaincy analysis | **V1 (legacy)** |
+
+The V3 engines (marked *candidate*) run side-by-side with V2 and do not change
+production behaviour. See `docs/expected_points.md` for the architecture, math,
+minutes methodology and validation strategy.
 
 ## 3. Technical Debt Report (Phase 1)
 
