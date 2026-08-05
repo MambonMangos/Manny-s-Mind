@@ -10,9 +10,35 @@ from services.data_loader import DataLoader, get_data_age_seconds
 from database.database import get_session
 
 
+def _render_team_selector() -> None:
+    """Number input for the viewer's FPL team ID (persists per session).
+
+    A ``?team_id=`` URL param (when present) seeds the widget so the box
+    always shows the active team. The write must happen before the widget is
+    instantiated — Streamlit forbids mutating a widget key after that.
+    """
+    from streamlit import session_state
+
+    from utils.constants import query_team_id_from_url
+
+    url_id = query_team_id_from_url()
+    if url_id is not None:
+        session_state["team_id_input"] = url_id
+    elif "team_id_input" not in session_state:
+        session_state["team_id_input"] = get_active_team_id()
+    st.number_input(
+        "Your FPL team ID",
+        min_value=1,
+        max_value=999_999_999,
+        step=1,
+        key="team_id_input",
+    )
+
+
 def render_refresh_button() -> None:
-    """Render a team indicator and data refresh button in the sidebar."""
+    """Render a team selector, indicator and data refresh button in the sidebar."""
     with st.sidebar:
+        _render_team_selector()
         st.caption(f"Viewing team {get_active_team_id()}")
         age = get_data_age_seconds()
         if age is not None:

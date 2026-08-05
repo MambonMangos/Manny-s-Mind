@@ -56,21 +56,12 @@ def _env_bool(name: str, default: bool) -> bool:
 TEAM_ID: int = _env_int("FPL_TEAM_ID", 472930)
 
 
-def get_active_team_id() -> int:
-    """Resolve the team ID for the current viewer.
-
-    Priority:
-      1. ``?team_id=NNNN`` URL query parameter (shared-deployment use),
-      2. ``FPL_TEAM_ID`` env var / ``TEAM_ID`` default.
-
-    This lets a single deployment serve any FPL team via a bookmarked URL,
-    e.g. ``https://host/?team_id=472930``. Falls back to the environment
-    default when the param is absent or invalid, or outside a Streamlit run.
-    """
+def query_team_id_from_url() -> int | None:
+    """Parse and validate ``?team_id=`` from the URL (None if absent/invalid)."""
     try:
         from streamlit import query_params
-    except Exception:  # noqa: BLE001 - non-Streamlit contexts fall back to env
-        return TEAM_ID
+    except Exception:  # noqa: BLE001 - non-Streamlit contexts report no param
+        return None
     raw = query_params.get("team_id")
     if isinstance(raw, list):
         raw = raw[0] if raw else None
@@ -78,7 +69,33 @@ def get_active_team_id() -> int:
         try:
             return int(raw)
         except (TypeError, ValueError):
-            logger.warning("Invalid team_id=%r in URL; using default %d", raw, TEAM_ID)
+            logger.warning("Invalid team_id=%r in URL; ignoring", raw)
+    return None
+
+
+def get_active_team_id() -> int:
+    """Resolve the team ID for the current viewer.
+
+    Priority:
+      1. ``?team_id=NNNN`` URL query parameter (bookmarked shared links).
+      2. Sidebar ``Your FPL team ID`` input (per-session).
+      3. ``FPL_TEAM_ID`` env var / ``TEAM_ID`` default.
+
+    Falls back to the environment default outside a Streamlit run.
+    """
+    url_id = query_team_id_from_url()
+    if url_id is not None:
+        return url_id
+    try:
+        from streamlit import session_state
+    except Exception:  # noqa: BLE001 - non-Streamlit contexts fall back to env
+        return TEAM_ID
+    stored = session_state.get("team_id_input")
+    if stored:
+        try:
+            return int(stored)
+        except (TypeError, ValueError):
+            logger.warning("Stored team_id=%r is not an integer; using default %d", stored, TEAM_ID)
     return TEAM_ID
 
 # ── FPL API ─────────────────────────────────────────────────────────────────
