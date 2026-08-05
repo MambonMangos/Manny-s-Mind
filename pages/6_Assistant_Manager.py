@@ -26,7 +26,7 @@ from components.theme import divider, inject_theme, page_header, section_label
 from components.ui import render_error, render_info, render_success, render_warning
 from database.database import get_session
 from services.assistant_manager.engine import run_assistant
-from utils.constants import TEAM_ID
+from utils.constants import get_active_team_id
 from utils.helpers import ensure_data_loaded
 
 st.set_page_config(page_title="Assistant Manager", layout="wide")
@@ -53,7 +53,7 @@ divider()
 session = get_session()
 try:
     with st.spinner("Running Assistant Manager analysis..."):
-        report = run_assistant(session, TEAM_ID)
+        report = run_assistant(session, get_active_team_id())
 finally:
     session.close()
 

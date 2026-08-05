@@ -45,7 +45,7 @@ from services.comparison_reports import (
 from services.fixture_service import fetch_fixtures
 from services.player_service import get_scored_players
 from utils.config import get_config_hash
-from utils.constants import TEAM_ID
+from utils.constants import get_active_team_id
 from utils.helpers import ensure_data_loaded
 
 st.set_page_config(page_title="Model Comparison", layout="wide")
@@ -147,7 +147,7 @@ def _load_squad(session, player_df: pd.DataFrame) -> list[int]:
     try:
         from services.team_service import fetch_team_data, resolve_player_names
 
-        team_data = fetch_team_data(TEAM_ID, gameweeks=list(range(1, 10)))
+        team_data = fetch_team_data(get_active_team_id(), gameweeks=list(range(1, 10)))
         picks_map = team_data.picks
         if not picks_map:
             return []

@@ -19,7 +19,7 @@ from services.team_service import (
     fetch_team_data,
 )
 from utils.helpers import ensure_data_loaded
-from utils.constants import TEAM_ID
+from utils.constants import get_active_team_id
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -53,11 +53,11 @@ def _load_history(team_id: int) -> dict:
     }
 
 
-raw = _load_history(TEAM_ID)
+raw = _load_history(get_active_team_id())
 
 # Reconstruct
 profile = ManagerProfile(
-    id=TEAM_ID,
+    id=get_active_team_id(),
     name=raw["profile_name"],
     team_name=raw["profile_team_name"],
     region=raw["profile_region"],

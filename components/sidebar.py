@@ -5,14 +5,15 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from utils.constants import POSITIONS
+from utils.constants import POSITIONS, get_active_team_id
 from services.data_loader import DataLoader, get_data_age_seconds
 from database.database import get_session
 
 
 def render_refresh_button() -> None:
-    """Render a data refresh button in the sidebar."""
+    """Render a team indicator and data refresh button in the sidebar."""
     with st.sidebar:
+        st.caption(f"Viewing team {get_active_team_id()}")
         age = get_data_age_seconds()
         if age is not None:
             if age < 60:

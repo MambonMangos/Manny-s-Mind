@@ -29,7 +29,7 @@ from services.team_service import (
     resolve_player_names,
 )
 from utils.helpers import ensure_data_loaded
-from utils.constants import TEAM_ID
+from utils.constants import get_active_team_id
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -45,12 +45,12 @@ render_refresh_button()
 # Fetch data – no cache so picks refresh on every page load
 # ---------------------------------------------------------------------------
 
-raw = fetch_team_data(TEAM_ID)
+raw = fetch_team_data(get_active_team_id())
 
 # Reconstruct dataclasses from live API data
 
 profile = ManagerProfile(
-    id=TEAM_ID,
+    id=get_active_team_id(),
     name=raw.profile.name,
     team_name=raw.profile.team_name,
     region=raw.profile.region,
