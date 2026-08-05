@@ -111,6 +111,8 @@ def get_players_dataframe(session: Session) -> pd.DataFrame:
             "selected_by_percent": player.selected_by_percent,
             "transfers_in_event": player.transfers_in_event,
             "transfers_out_event": player.transfers_out_event,
+            "cost_change_start": player.cost_change_start,
+            "cost_change_event": player.cost_change_event,
             "status": player.status,
             "news": player.news,
             "clean_sheets": player.clean_sheets,
