@@ -151,6 +151,62 @@ def run_assistant(
     except Exception as e:  # noqa: BLE001 - fall back to 0 bank, never crash the report
         logger.warning("Failed to calculate squad bank from squad data: %s", e)
 
+    # ── Production Prediction Pipeline (V3 primary + V1/V2 shadow) ─────────
+    # Runs the configured production model (V3 expected points) and persists
+    # it append-only to the ledger; V1/V2 continue running as shadow (control)
+    # models. All downstream recommendations consume the V3 projections when
+    # available and fall back to the legacy value-score engines otherwise.
+    store = None
+    try:
+        from features import build_feature_store
+        from services.production_predictor import run_production_predictions
+        from utils.config import get_config_hash
+
+        config_hash = get_config_hash("prediction")
+        store = build_feature_store(
+            players_df=player_df,
+            fixture_map=fixture_map,
+            team_name_map=team_name_map,
+            gameweek_id=current_gameweek or 0,
+            config_hash=config_hash,
+        )
+
+        current_squad_ids = list(squad_df["id"].values) if not squad_df.empty else []
+
+        production = run_production_predictions(
+            store=store,
+            gameweek_id=current_gameweek or 0,
+            session=session,
+            persist=True,
+            current_squad=current_squad_ids,
+            budget_remaining=bank,
+        )
+
+        report.production_pipeline_result = production
+        report.production_model_id = production.primary_model_id
+
+        # V3 projections drive every downstream recommendation engine.
+        if production.primary and production.primary.projections:
+            proj_map = {
+                int(p.player_id): float(p.projected_points)
+                for p in production.primary.projections
+            }
+            player_df["projected_points"] = (
+                player_df["id"].map(proj_map).fillna(0.0).round(2)
+            )
+            squad_df["projected_points"] = (
+                squad_df["id"].map(proj_map).fillna(0.0).round(2)
+            )
+        logger.info(
+            "Production predictions complete for gw=%d: %s",
+            current_gameweek or 0, production.summary(),
+        )
+    except Exception as e:  # noqa: BLE001 - pipeline failure must never crash the report
+        logger.warning("Production prediction pipeline failed (non-critical): %s", e)
+    finally:
+        if "projected_points" not in player_df.columns:
+            player_df["projected_points"] = 0.0
+
     # ── Section 1: Squad Evaluation ───────────────────────────────────────
     logger.info("Running squad evaluation")
     report.squad_evaluation = evaluate_squad(
@@ -212,39 +268,32 @@ def run_assistant(
         chip_recs=report.chip_recommendations,
     )
 
-    # ── Section 8: V2 Projection Pipeline ────────────────────────────────
-    logger.info("Running V2 projection pipeline")
-    try:
-        from services.pipeline import run_projection_pipeline
-        from features import build_feature_store
-        from utils.config import get_config_hash
+    # ── Section 8: League Intelligence ────────────────────────────────────
+    # Consumes the V3 production projections (read-only). Mini-league and rival
+    # analysis are optional and best-effort; exposures + differentials always run.
+    if store is not None and report.production_pipeline_result is not None:
+        logger.info("Running league intelligence")
+        try:
+            from services.league_intelligence import run_league_intelligence
 
-        # Build feature store
-        config_hash = get_config_hash("prediction")
-        store = build_feature_store(
-            players_df=player_df,
-            fixture_map=fixture_map,
-            team_name_map=team_name_map,
-            gameweek_id=current_gameweek or 0,
-            config_hash=config_hash,
-        )
+            primary = report.production_pipeline_result.primary
+            v3_projections = primary.projections if primary else []
+            current_squad_ids = list(squad_df["id"].values) if not squad_df.empty else []
+            captain_id = next(
+                (int(r["id"]) for _, r in squad_df.iterrows() if r.get("is_captain")),
+                None,
+            )
 
-        # Get current squad player IDs
-        current_squad_ids = list(squad_df["player_id"].values) if not squad_df.empty else []
-
-        # Run V2 pipeline
-        v2_result = run_projection_pipeline(
-            store=store,
-            gameweek_id=current_gameweek or 0,
-            current_squad=current_squad_ids,
-            budget_remaining=bank,
-        )
-
-        report.v2_pipeline_result = v2_result
-        logger.info("V2 pipeline complete: %d projections", len(v2_result.projections))
-
-    except Exception as e:
-        logger.warning("V2 pipeline failed (non-critical): %s", e)
+            report.league_intelligence = run_league_intelligence(
+                store=store,
+                projections=v3_projections,
+                team_id=team_id,
+                gameweek_id=current_gameweek or 0,
+                user_squad=current_squad_ids,
+                user_captain=captain_id,
+            )
+        except Exception as e:  # noqa: BLE001 - league intelligence is best-effort
+            logger.warning("League intelligence failed (non-critical): %s", e)
 
     # ── Section 6: Log recommendations ────────────────────────────────────
     logger.info("Logging recommendations")

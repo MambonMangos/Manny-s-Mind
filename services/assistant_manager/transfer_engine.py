@@ -89,7 +89,16 @@ def generate_transfer_recommendations(
             in_vs = float(in_row.get("value_score", 0) or 0)
 
             price_diff = round(in_price - out_a.price, 1)
-            expected_gain = project_points_gain(out_a, in_row, in_avg_d3)
+
+            # Expected gain: V3 xPts drive the score when both players have a
+            # production projection; otherwise fall back to the legacy engine.
+            in_proj = float(in_row.get("projected_points", 0) or 0)
+            out_proj = float(getattr(out_a, "projected_points", 0) or 0)
+            if in_proj > 0 and out_proj > 0:
+                expected_gain = round(in_proj - out_proj, 2)
+            else:
+                expected_gain = project_points_gain(out_a, in_row, in_avg_d3)
+
             minutes_proj = project_minutes(in_row)
             risk = classify_risk(in_row, in_avg_d3)
             confidence = compute_confidence(expected_gain, risk, minutes_proj, in_form)
@@ -134,6 +143,7 @@ def generate_transfer_recommendations(
                     news=str(in_row.get("news", "") or ""),
                     selected_by_percent=selected,
                     cost_change_start=int(in_row.get("cost_change_start", 0) or 0),
+                    projected_points=in_proj,
                 ),
                 price_difference=price_diff,
                 expected_points_gained=expected_gain,

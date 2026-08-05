@@ -1,16 +1,40 @@
 # Prediction System — Architecture, Ownership & Roadmap
 
 **Owner:** ML / Analytics Engineer
-**Phase 1 scope:** Architecture review only. **No prediction behaviour changed.**
+**Current state:** Version 3 (Expected Points / xPts) is the **primary production
+model**. V1 and V2 remain as **shadow / control** models — they are validated
+against V3 over time and are never removed.
 
 ## 1. Prediction Architecture
 
-The prediction platform is a **probabilistic forecasting pipeline** (V2) orchestrated by `services/pipeline.py`:
+The prediction platform has three generations of models:
+
+- **V1 (legacy)** — value-score engine layer (`value_engine`, `market_engine`,
+  `prediction_engine`, `captain_engine`). Still the fallback for recommendation
+  engines when no projection data is available.
+- **V2** — the deterministic 7-step forecasting pipeline orchestrated by
+  `services/pipeline.py` (ledger model `projection_v2`). Runs as a **shadow /
+  control** model.
+- **V3 (production)** — Expected Points / xPts (`engines/expected_projection_engine.py`,
+  ledger model `expected_points_v1`). `xPts = xPts/90 × expected minutes / 90`.
+  This is the production model every recommendation path consumes by default.
+
+The primary/shadow split is **config-driven** (`config/production/production_v1.yaml`):
+
+```yaml
+primary_model: expected_points_v1
+shadow_models:
+  - projection_v2
+```
 
 ```
 Feature Store (features/store.py)
    ↓  per-player, per-GW derived features
-services/pipeline.py  (7 steps)
+Production Predictor (services/production_predictor.py)
+   ├── PRIMARY: expected_points_v1  → xPts/90 × minutes/90 (V3, persisted)
+   └── SHADOW:  projection_v2       → 7-step pipeline (V2, persisted, control)
+        ↑
+   services/pipeline.py (7 steps)
    1. minutes_engine          → projected minutes with rotation risk
    2. projection_engine       → base point projection with CIs
    3. regression_engine       → over/underperformance flags
@@ -20,43 +44,46 @@ services/pipeline.py  (7 steps)
    7. opportunity_engine      → undervalued player detection
 ```
 
-Every output is written to the **append-only prediction ledger** (`prediction_versions`, `projections`) with a `config_hash` and `weights_snapshot`, enabling reproducible, comparable forecasts.
+Every output is written to the **append-only prediction ledger** (`prediction_versions`, `projections`) with a `config_hash` and `weights_snapshot`, enabling reproducible, comparable forecasts. Shadow-model versions are persisted the same way so both generations stay validated.
 
 ### Design principles
 
 - **One source of truth for features** — `features/store.py`.
-- **Versioned config** — projection parameters live in `config/prediction/prediction_v1.yaml`; weights in `config/weights/`.
+- **Versioned config** — projection parameters live in `config/prediction/prediction_v1.yaml`; xPts parameters in `config/expected_points/`; the production model selection in `config/production/`.
 - **Append-only ledger** — forecasts are never overwritten; validation compares versions against actuals.
 - **Uncertainty is explicit** — every projection carries 80%/95% confidence intervals from the confidence engine.
+- **Config-driven model selection** — production paths read `get_primary_model_id()` / `get_shadow_model_ids()`; they never hard-code a model id.
 
 ## 2. Engine Ownership Map
 
 | Engine | File | Responsibility | Status |
 |---|---|---|---|
-| Feature Store | `features/store.py` | Derived features (single source of truth) | V2 |
-| Minutes Engine | `engines/minutes_engine.py` | Minutes projection + rotation risk | V2 |
-| Projection Engine | `engines/projection_engine.py` | Points projection + CIs | V2 |
-| Expected Points Engine | `engines/expected_points_engine.py` | xPts/90 rate model (V3) | V3 candidate |
-| Expected Minutes Engine | `engines/expected_minutes_engine.py` | Probability-weighted expected minutes (V3) | V3 candidate |
-| Expected Projection Engine | `engines/expected_projection_engine.py` | V3 compositor: xPts = xPts/90 × minutes/90 | V3 candidate |
-| Expected Pipeline | `services/expected_pipeline.py` | Side-by-side V2-vs-V3 comparison + persistence | V3 candidate |
-| Regression Engine | `engines/regression_engine.py` | Over/underperformance detection | V2 |
-| Bookmaker Engine | `engines/bookmaker_engine.py` | Odds integration | V2 |
-| Confidence Engine | `engines/confidence_engine.py` | Uncertainty quantification | V2 |
-| Opportunity Engine | `engines/opportunity_engine.py` | Undervalued detection | V2 |
-| Market Intelligence | `engines/market_intelligence_engine.py` | Transfer/ownership trends | V2 |
-| Monte Carlo Engine | `engines/monte_carlo_engine.py` | Simulation-based uncertainty | V2 |
-| Squad Optimizer | `engines/squad_optimizer.py` | Budget-constrained optimization | V2 |
-| Validation Engine | `engines/validation_engine.py` | Accuracy metrics, CI calibration | V2 |
-| Value Engine | `engines/value_engine.py` | Value score + player rating | **V1 (legacy)** |
+| Feature Store | `features/store.py` | Derived features (single source of truth) | V2/V3 shared |
+| Minutes Engine | `engines/minutes_engine.py` | Minutes projection + rotation risk | V2 (shadow) |
+| Projection Engine | `engines/projection_engine.py` | Points projection + CIs | V2 (shadow) |
+| Expected Points Engine | `engines/expected_points_engine.py` | xPts/90 rate model (V3) | **V3 (production)** |
+| Expected Minutes Engine | `engines/expected_minutes_engine.py` | Probability-weighted expected minutes (V3) | **V3 (production)** |
+| Expected Projection Engine | `engines/expected_projection_engine.py` | V3 compositor: xPts = xPts/90 × minutes/90 | **V3 (production)** |
+| Production Predictor | `services/production_predictor.py` | Runs primary + shadow models, persists append-only | **V3 (production)** |
+| Expected Pipeline | `services/expected_pipeline.py` | Comparison + persistence helpers | V3 (production) |
+| Regression Engine | `engines/regression_engine.py` | Over/underperformance detection | V2 (shadow) |
+| Bookmaker Engine | `engines/bookmaker_engine.py` | Odds integration | V2 (shadow) |
+| Confidence Engine | `engines/confidence_engine.py` | Uncertainty quantification | V2 (shadow) |
+| Opportunity Engine | `engines/opportunity_engine.py` | Undervalued detection | V2 (shadow) |
+| Market Intelligence | `engines/market_intelligence_engine.py` | Transfer/ownership trends | V2 (shadow) |
+| Monte Carlo Engine | `engines/monte_carlo_engine.py` | Simulation-based uncertainty | V2 (shadow) |
+| Squad Optimizer | `engines/squad_optimizer.py` | Budget-constrained optimization | V2 (shadow) |
+| Validation Engine | `engines/validation_engine.py` | Accuracy metrics, CI calibration | Shared (all versions) |
+| Value Engine | `engines/value_engine.py` | Value score + player rating | **V1 (legacy/fallback)** |
 | Fixture Engine | `engines/fixture_engine.py` | Fixture difficulty, windows, swings | V1+V2 merged |
-| Market Engine | `engines/market_engine.py` | Transfers, ownership, price trends | **V1 (legacy)** |
-| Prediction Engine | `engines/prediction_engine.py` | V1 points/minutes projection | **V1 (legacy)** |
-| Captain Engine | `engines/captain_engine.py` | Captaincy analysis | **V1 (legacy)** |
+| Market Engine | `engines/market_engine.py` | Transfers, ownership, price trends | **V1 (legacy/fallback)** |
+| Prediction Engine | `engines/prediction_engine.py` | V1 points/minutes projection | **V1 (legacy/fallback)** |
+| Captain Engine | `engines/captain_engine.py` | Captaincy analysis | **V1 (legacy/fallback)** |
 
-The V3 engines (marked *candidate*) run side-by-side with V2 and do not change
-production behaviour. See `docs/expected_points.md` for the architecture, math,
-minutes methodology and validation strategy.
+The V3 engines are **production**: the assistant manager, league intelligence,
+comparison platform and dashboards consume V3 projections by default. V1/V2
+continue running as the control group. See `docs/expected_points.md` for the
+architecture, math, minutes methodology and validation strategy.
 
 ## 3. Technical Debt Report (Phase 1)
 
@@ -96,7 +123,7 @@ Identified during review. **No fixes applied in Phase 1** — all items below ar
 
 Prioritised after GW1 validation data is available:
 
-1. **Consolidate V1 engines** — retire `value_engine`, `market_engine`, `prediction_engine`, `captain_engine` once V2 equivalents are proven by validation (TD-1).
+1. **Consolidate V1 engines into V3-driven paths** — fold `value_engine`, `market_engine`, `prediction_engine`, `captain_engine` into the V3 recommendation pipeline as documented fallbacks; V1/V2 remain as validated shadow/control models, never removed (TD-1).
 2. **Single uncertainty source** — extract CI/variance computation into one module used by projection and confidence engines (TD-3).
 3. **Feature Store de-duplication** — move fixture-window features fully into the Feature Store; engines consume, never recompute (TD-2).
 4. **Config-driven player rating** — read `player_rating` weights from `config/weights/` (TD-4).

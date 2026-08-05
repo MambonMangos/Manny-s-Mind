@@ -112,6 +112,23 @@ if available_gws:
     gp = picks_map[gw_choice]
     squad_df = resolve_player_names(gp.picks, player_df)
 
+    # Attach V3 production projections (xPts) from the ledger when available so
+    # captain and bench recommendations consume the production model.
+    try:
+        from services.production_predictor import load_persisted_projections
+
+        session_proj = get_session()
+        try:
+            proj_map = load_persisted_projections(session_proj, gameweek_id=gw_choice)
+        finally:
+            session_proj.close()
+        if proj_map:
+            squad_df["projected_points"] = (
+                squad_df["id"].map(proj_map).fillna(0.0).round(2)
+            )
+    except Exception:  # noqa: BLE001 - projections are optional for this page
+        st.warning("Could not load production projections for this gameweek.")
+
     if not squad_df.empty:
         starters = squad_df[squad_df["squad_position"] <= 11]
         defs = len(starters[starters["position"] == "DEF"])
@@ -187,8 +204,9 @@ if available_gws:
             bench_display = bench.rename(columns={
                 "team_short": "Team", "position": "Pos", "price": "Price",
                 "total_points": "Pts", "expected_goal_involvements": "xGI",
+                "projected_points": "xPts",
             })
-            show_cols = [c for c in ["Player", "Team", "Pos", "Price", "Pts", "xGI"] if c in bench_display.columns]
+            show_cols = [c for c in ["Player", "Team", "Pos", "Price", "Pts", "xPts", "xGI"] if c in bench_display.columns]
             st.dataframe(bench_display[show_cols], use_container_width=True, hide_index=True,
                          height=40 + 35 * len(bench))
 
@@ -198,10 +216,16 @@ if available_gws:
         if not cap_df.empty:
             st.dataframe(cap_df, use_container_width=True, hide_index=True)
             top_cap = cap_df.iloc[0]
-            st.info(
-                f"**Recommended Captain:** {top_cap['web_name']} "
-                f"({top_cap['team_short']}) – Value Score {top_cap['value_score']:.1f}"
-            )
+            if "projected_points" in cap_df.columns:
+                st.info(
+                    f"**Recommended Captain:** {top_cap['web_name']} "
+                    f"({top_cap['team_short']}) – V3 xPts {top_cap['projected_points']:.1f}"
+                )
+            else:
+                st.info(
+                    f"**Recommended Captain:** {top_cap['web_name']} "
+                    f"({top_cap['team_short']}) – Value Score {top_cap['value_score']:.1f}"
+                )
         else:
             st.info("Not enough data to recommend a captain.")
 

@@ -6,7 +6,7 @@ Manny's FPL House is a data-driven Fantasy Premier League analytics platform. It
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  Streamlit (app.py + pages/ + components/)                       │
+│  Streamlit (About.py + pages/ + components/)                      │
 │  ─ UI rendering, filters, charts, recommendations                │
 ├──────────────────────────────────────────────────────────────────┤
 │  Services (services/)                                            │
@@ -27,12 +27,13 @@ Manny's FPL House is a data-driven Fantasy Premier League analytics platform. It
 
 ## Data Flow
 
-1. **Bootstrap** — `app.py` calls `ensure_data_loaded()` (`utils/helpers.py`), which initialises the database and fetches data from the FPL API when stale.
+1. **Bootstrap** — `About.py` calls `ensure_data_loaded()` (`utils/helpers.py`), which initialises the database and fetches data from the FPL API when stale.
 2. **Ingest** — `services/data_loader.py` fetches `bootstrap-static` (teams, players, gameweeks) and upserts into SQLite. Fixtures, team history, and picks are fetched on demand by `services/fixture_service.py` and `services/team_service.py`.
 3. **Derive** — `services/scoring.py` normalises raw stats and computes the composite value score using the weights in `config/weights/`.
 4. **Feature engineering** — `features/store.py` builds the Feature Store: a per-player, per-gameweek snapshot of derived features (minutes, xGI, fixture difficulty, market signals, regression flags, set pieces, trends).
-5. **Prediction** — `services/pipeline.py` orchestrates the V2 prediction pipeline (`engines/projection_engine.py`, `confidence_engine.py`, etc.) producing projected points, confidence intervals, and opportunity scores.
-6. **Presentation** — pages render rankings, comparisons, team analysis, assistant-manager recommendations, and model analytics.
+5. **Prediction** — `services/production_predictor.py` runs the **V3 production model** (`engines/expected_projection_engine.py`, `xPts = xPts/90 × expected minutes / 90`) and persists it append-only; V2 (`services/pipeline.py` → `projection_v2`) continues running as a **shadow / control** model. Both are written to the prediction ledger so they can be validated against actuals over time.
+6. **League Intelligence** — `services/league_intelligence/` layers league context (effective ownership, differentials, mini-league/rival analysis) **on top of** the V3 production projections to shape recommendations only; it never modifies prediction values (see `docs/league_intelligence.md`).
+7. **Presentation** — pages render rankings, comparisons, team analysis, assistant-manager recommendations, and model analytics.
 
 ## Layering Rules
 
@@ -67,6 +68,7 @@ Safe Defaults (utils/constants.py, utils/config.py)
 | `pages/` | Streamlit pages | — |
 | `components/` | UI components | — |
 | `services/` | Application services & data loading | Data / ML |
+| `services/league_intelligence/` | League-aware strategy layer (analysis + recommendations) | ML |
 | `engines/` | Prediction & analysis engines | ML |
 | `features/` | Feature Store | ML |
 | `database/` | ORM, CRUD, engine | Data |

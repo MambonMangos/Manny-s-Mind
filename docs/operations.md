@@ -61,7 +61,7 @@
 
 ```bash
 # Restart the app
-pkill -f "streamlit run app.py"; streamlit run app.py --server.headless true --server.port 8501 &
+pkill -f "streamlit run About.py"; streamlit run About.py --server.headless true --server.port 8501 &
 
 # Force a data refresh
 # (click "Refresh Data" in the sidebar, or delete the DB and restart)

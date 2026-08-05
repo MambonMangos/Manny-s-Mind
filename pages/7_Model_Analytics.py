@@ -160,7 +160,7 @@ with tab_workflow:
                     f"{s['ingested']} ingested, {s['pending']} pending"
                 )
         else:
-            st.info("No predictions found in the ledger. Run the V2 pipeline first.")
+            st.info("No predictions found in the ledger. Run the prediction pipeline first.")
 
         # Finished GWs needing ingestion
         pending = detect_finished_gameweeks(session)
@@ -228,7 +228,7 @@ with tab_scatter:
     try:
         versions = get_prediction_versions(session)
         if not versions:
-            st.info("No prediction versions found. Run the V2 pipeline first.")
+            st.info("No prediction versions found. Run the prediction pipeline first.")
         else:
             version_options = {pv.version_tag: pv.id for pv in versions}
             selected_tag = st.selectbox("Prediction Version", list(version_options.keys()))

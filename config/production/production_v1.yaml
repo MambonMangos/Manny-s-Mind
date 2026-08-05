@@ -1,0 +1,27 @@
+# Production model selection.
+#
+# Defines which prediction model is the application's primary production
+# model, and which models continue running as *shadow* (control group) models.
+#
+# Design contract:
+#   - The primary model feeds every production path (assistant manager,
+#     league intelligence, comparison platform, dashboards).
+#   - Shadow models are never removed or deprecated. They keep persisting
+#     append-only so they can be validated against the primary model over time
+#     (accuracy, calibration, bias, drift).
+#   - Model ids reference the `model_name` stored in the Prediction Ledger
+#     (PredictionVersion.model_name).
+#
+# When changing the primary model, add a new production_vN.yaml version and
+# point config/active.yaml at it. Never overwrite an old version.
+
+version: "1.0.0"
+description: >
+  Version 3 (Expected Points / xPts) is the primary production model.
+  V1 (value-score engine layer) and V2 (projection_v2 pipeline) remain as
+  shadow / control models — validated against V3 over time, never removed.
+
+primary_model: expected_points_v1
+
+shadow_models:
+  - projection_v2

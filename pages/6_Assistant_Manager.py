@@ -38,9 +38,10 @@ page_header(
     "Assistant Manager",
     "Your FPL decision engine — analyzing your squad for data-driven recommendations on "
     "transfers, captaincy, chip strategy, and long-term planning. It evaluates player value, "
-    "fixtures, form, ownership, price changes, and projected points while explaining the "
-    "reasoning behind every recommendation. As the season progresses, it continuously compares "
-    "predictions to actual outcomes to improve its accuracy over time.",
+    "fixtures, form, ownership, price changes, and V3 expected points (xPts) — the production "
+    "model — while explaining the reasoning behind every recommendation. As the season "
+    "progresses, it continuously compares predictions to actual outcomes to improve its "
+    "accuracy over time.",
 )
 
 divider()

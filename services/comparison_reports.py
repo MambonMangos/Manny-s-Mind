@@ -366,9 +366,11 @@ def evidence_status(
             thresholds[next_level] - validated_gameweeks if next_level else 0
         ),
         "promotion_criteria": (
-            "V3 may only be considered for promotion after "
-            f"≥{thresholds['strong']} gameweeks of superior MAE/RMSE and "
-            "CI calibration. No change is ever automatic."
+            "V3 is the production model; the V2 shadow (control) group must "
+            f"stay within tolerance over ≥{thresholds['strong']} gameweeks of "
+            "validated MAE/RMSE and CI calibration. A sustained control-group "
+            "divergence is a drift signal — investigate before trusting V3. "
+            "No change is ever automatic."
         ),
     }
 

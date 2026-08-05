@@ -10,7 +10,7 @@ cd moneyball-fpl
 uv venv .venv
 uv pip install -r requirements-dev.txt   # includes runtime + dev deps
 cp .env.example .env
-streamlit run app.py                      # → http://localhost:8501
+streamlit run About.py                      # → http://localhost:8501
 ```
 
 ## 2. Tooling
@@ -18,7 +18,7 @@ streamlit run app.py                      # → http://localhost:8501
 | Tool | Purpose | Command |
 |---|---|---|
 | `uv` | Environment & dependency manager | `uv pip install -r requirements.txt` |
-| `streamlit` | Web app framework | `streamlit run app.py` |
+| `streamlit` | Web app framework | `streamlit run About.py` |
 | `pytest` | Test runner | `pytest` |
 | `ruff` | Linter / formatter | `ruff check .` / `ruff format .` |
 | `alembic` | Database migrations | `alembic upgrade head` |
@@ -72,7 +72,7 @@ Merge via squash/rebase so `main` history stays linear. Every commit message sho
 
 ```bash
 pytest -q                                # fast feedback
-streamlit run app.py                      # manual check
+streamlit run About.py                      # manual check
 alembic upgrade head                      # after model changes
 ```
 

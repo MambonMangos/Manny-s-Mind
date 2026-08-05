@@ -171,6 +171,7 @@ def evaluate_squad(
             risk_flags=risks,
             opportunity_flags=opportunities,
             squad_rating=rating,
+            projected_points=float(row.get("projected_points", 0) or 0),
         )
 
         player_assessments.append(assessment)

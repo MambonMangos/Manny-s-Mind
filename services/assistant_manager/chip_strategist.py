@@ -161,10 +161,13 @@ def evaluate_chips(
         dws = _check_double_gameweeks(fixtures, team_id, upcoming_gameweeks[:10])
 
         bench_players = [p for p in squad_eval.players if p.minutes_played < 90] or []
-        bench_quality = (
-            sum(p.form for p in bench_players) / len(bench_players)
-            if bench_players else 0
-        )
+        if bench_players and all(p.projected_points > 0 for p in bench_players):
+            bench_quality = sum(p.projected_points for p in bench_players) / len(bench_players)
+        else:
+            bench_quality = (
+                sum(p.form for p in bench_players) / len(bench_players)
+                if bench_players else 0
+            )
 
         if dws:
             bb_rec.should_play = True

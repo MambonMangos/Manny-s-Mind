@@ -1,6 +1,6 @@
-"""Model Comparison Dashboard — V2 baseline vs V3 xPts shadow model.
+"""Model Comparison Dashboard — V3 production vs V2 shadow (control group).
 
-Scientific validation + explainability layer for the V3 expected-points model:
+Scientific validation + explainability layer for the prediction models:
 
   - Alignment summary metrics (correlation, mean diff, agreement).
   - V2-vs-V3 scatter plot and largest-disagreement table.
@@ -8,8 +8,10 @@ Scientific validation + explainability layer for the V3 expected-points model:
   - Captaincy / transfer / undervalued recommendation differences.
   - Evidence-threshold status (weak → statistically_significant).
 
-V3 is a *shadow model*: this page evaluates it only. It never replaces the V2
-production projection engine, and no single gameweek drives any change.
+Version 3 (xPts) is the primary production model. V1 (value-score engines) and
+V2 (projection_v2) run as *shadow / control* models: they are validated against
+V3 over time (accuracy, calibration, bias, drift) and are never removed.
+Shadow models are evaluated here; no single gameweek drives any change.
 """
 
 from __future__ import annotations
@@ -50,7 +52,7 @@ st.set_page_config(page_title="Model Comparison", layout="wide")
 inject_theme()
 page_header(
     "Model Comparison",
-    "V2 baseline vs V3 xPts shadow model — validate, don't replace.",
+    "V3 production vs V2 shadow model — validate the control group, don't regress.",
 )
 ensure_data_loaded()
 render_refresh_button()
@@ -184,20 +186,25 @@ def _build_store(session, gameweek_id: int):
 
 
 def _load_ledger_alignment(session, gameweek_id: int):
-    """Fetch stored V2+V3 projections for the scatter plot (if both exist)."""
+    """Fetch stored primary(V3)+shadow(V2) projections for the scatter plot."""
     from database.crud import get_projections
+    from utils.config import get_primary_model_id, get_shadow_model_ids
 
-    expected_vid = baseline_vid = None
+    primary_model = get_primary_model_id()
+    shadow_models = get_shadow_model_ids()
+    shadow_model = shadow_models[0] if shadow_models else None
+
+    primary_vid = shadow_vid = None
     for pv in session.query(PredictionVersion).all():
-        if pv.model_name == "expected_points_v1":
-            expected_vid = pv.id
-        elif baseline_vid is None:
-            baseline_vid = pv.id
-    if expected_vid is None or baseline_vid is None:
+        if pv.model_name == primary_model:
+            primary_vid = pv.id
+        elif shadow_model is not None and pv.model_name == shadow_model:
+            shadow_vid = pv.id
+    if primary_vid is None or shadow_vid is None:
         return None
 
-    v3_list = get_projections(session, expected_vid, gameweek_id)
-    v2_list = get_projections(session, baseline_vid, gameweek_id)
+    v3_list = get_projections(session, primary_vid, gameweek_id)
+    v2_list = get_projections(session, shadow_vid, gameweek_id)
     if not v3_list or not v2_list:
         return None
     return v3_list, v2_list
@@ -222,7 +229,7 @@ col_gw, col_persist, col_run = st.columns([2, 2, 1])
 with col_gw:
     selected_gw = st.selectbox(
         "Gameweek", gameweek_ids, index=gameweek_ids.index(default_gw),
-        help="Run the V2 and V3 engines side-by-side for this gameweek.",
+        help="Run the V3 (production) and V2 (shadow) engines side-by-side for this gameweek.",
     )
 with col_persist:
     persist = st.checkbox(
@@ -237,8 +244,8 @@ with col_run:
 if not run:
     st.info(
         "Select a gameweek and press **Run Comparison** to generate the "
-        "scientific V2-vs-V3 report. The V3 model stays a shadow model — "
-        "it is evaluated here, never promoted automatically."
+        "scientific V2-vs-V3 report. V3 is the production model; V2 is the "
+        "shadow/control group, evaluated here and never removed."
     )
     st.stop()
 
@@ -246,7 +253,7 @@ if not run:
 # Run comparison
 # ------------------------------------------------------------------
 
-with st.spinner("Running V2 + V3 projections and building the comparison report…"):
+with st.spinner("Running V3 + V2 projections and building the comparison report…"):
     session = get_session()
     try:
         store, player_df = _build_store(session, selected_gw)
@@ -292,14 +299,14 @@ with c1:
 with c2:
     corr = alignment.get("correlation")
     st.metric("Correlation", f"{corr:.3f}" if corr is not None else "N/A")
-    st.caption("How similarly V2 and V3 rank players")
+    st.caption("How similarly V3 (production) and V2 (shadow) rank players")
 with c3:
     mad = alignment.get("mean_abs_diff")
     st.metric("Mean |Δ|", f"{mad:.2f}" if mad is not None else "N/A")
-    st.caption("Average absolute V3-vs-V2 difference (pts)")
+    st.caption("Average absolute V2-vs-V3 difference (pts)")
 with c4:
     st.metric("Mean Δ (V3−V2)", f"{alignment.get('mean_diff_v3_minus_v2', 0):+.3f}")
-    st.caption("Overall bias direction of V3 vs V2")
+    st.caption("Overall bias direction of V3 vs the V2 control group")
 with c5:
     rate = agreement.get("overall_rate")
     st.metric("Agreement Rate", f"{rate:.0%}" if rate is not None else "N/A")
@@ -312,10 +319,10 @@ divider()
 # ------------------------------------------------------------------
 
 section_label("Projection Alignment")
-section_title("V3 xPts vs V2 Projected Points")
+section_title("V3 xPts (production) vs V2 Projected Points (shadow)")
 st.caption(
     "Each point is one player. Color shows the signed difference (V3 − V2); "
-    "players far from the diagonal are the model's disagreements."
+    "players far from the diagonal are where the models disagree."
 )
 
 session = get_session()
@@ -360,8 +367,9 @@ if ledger_pair:
 else:
     st.info(
         "No stored V2/V3 ledger pair for this gameweek. Run the comparison "
-        "with **Persist V3 version to ledger** checked, then validate both "
-        "versions in the Model Analytics page for a scatter plot of stored data."
+        "with **Persist V3 version to ledger** checked (or run the Assistant "
+        "Manager, which persists both versions), then validate both models in "
+        "the Model Analytics page for a scatter plot of stored data."
     )
 
 divider()
@@ -371,7 +379,7 @@ divider()
 # ------------------------------------------------------------------
 
 section_label("Largest Disagreements")
-section_title("Where do V2 and V3 most strongly disagree?")
+section_title("Where do the V2 shadow and V3 production models most strongly disagree?")
 st.caption(
     "Sorted by absolute difference. Direction shows whether V3 rates the "
     "player higher or lower than V2. Explainable via the panel below."
@@ -408,7 +416,6 @@ if report.disagreements:
     st.plotly_chart(fig_bar, use_container_width=True)
 else:
     st.info("No disagreements above threshold — V2 and V3 are in close agreement.")
-
 divider()
 
 # ------------------------------------------------------------------
@@ -608,10 +615,11 @@ divider()
 # ------------------------------------------------------------------
 
 section_label("Evidence Framework")
-section_title("What would it take to trust V3?")
+section_title("What would it take to keep trusting V3?")
 st.caption(
-    "V3 is a shadow model. Promotion requires sustained multi-gameweek "
-    "evidence — never a single result."
+    "V3 is the production model; V2 is the shadow/control group. Sustained "
+    "multi-gameweek evidence is required before any model change — never a "
+    "single result."
 )
 
 ladder = [

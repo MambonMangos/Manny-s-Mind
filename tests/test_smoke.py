@@ -25,7 +25,7 @@ def test_all_pages_parse_as_python():
         with open(os.path.join(pages_dir, page)) as fh:
             ast.parse(fh.read())
     # Also the entry point
-    with open(os.path.join(PROJECT_ROOT, "app.py")) as fh:
+    with open(os.path.join(PROJECT_ROOT, "About.py")) as fh:
         ast.parse(fh.read())
 
 

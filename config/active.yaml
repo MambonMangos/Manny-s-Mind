@@ -10,3 +10,5 @@ active_versions:
   expected_minutes: expected_minutes_v1
   bookmaker: bookmaker_v1
   features: features_v1
+  league_intelligence: league_intelligence_v1
+  production: production_v1

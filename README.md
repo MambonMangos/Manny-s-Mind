@@ -45,7 +45,7 @@ cp .env.example .env
 ### Run
 
 ```bash
-streamlit run app.py
+streamlit run About.py
 ```
 
 Open **http://localhost:8501** in your browser.
@@ -89,7 +89,7 @@ alembic revision --autogenerate -m "describe change"   # create a new migration
 ## Project Layout
 
 ```
-├── app.py                    # Streamlit entry point
+├── About.py                   # Streamlit entry point
 ├── pages/                    # Streamlit multi-page app
 ├── components/               # UI components (theme, charts, tables, sidebar)
 ├── database/                 # SQLAlchemy models, engine, CRUD

@@ -117,6 +117,35 @@ def get_active_version(category: str) -> str:
     return version
 
 
+def get_production_config() -> dict:
+    """Load the active production-model selection config.
+
+    The "production" config category declares which prediction model is the
+    primary (production) model and which models run as shadow models. This is
+    the single source of truth — never hard-code model ids in services/pages.
+    """
+    return load_config("production")
+
+
+def get_primary_model_id() -> str:
+    """Return the model id of the primary production predictor.
+
+    The returned value matches a PredictionVersion.model_name in the ledger.
+    """
+    config = get_production_config()
+    model = config.get("primary_model")
+    if not model:
+        raise ValueError("production config is missing 'primary_model'")
+    return model
+
+
+def get_shadow_model_ids() -> list[str]:
+    """Return the model ids that run as shadow (control group) predictors."""
+    config = get_production_config()
+    shadows = config.get("shadow_models") or []
+    return list(shadows)
+
+
 def list_versions(category: str) -> list[str]:
     """List all available versions for a config category."""
     category_dir = _CONFIG_DIR / category

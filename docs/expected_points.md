@@ -1,7 +1,10 @@
 # Expected Points (xPts) — V3 Prediction Model
 
 **Owner:** ML / Analytics Engineer
-**Status:** Candidate model — runs **side-by-side** with V2, does **not** change production behaviour.
+**Status:** **Production model.** V3 is the application's primary predictor; V1
+and V2 continue running as **shadow / control** models, validated against V3 over
+time and never removed. The primary/shadow selection is config-driven
+(`config/production/production_v1.yaml`).
 
 ## 1. Architecture Summary
 
@@ -12,19 +15,20 @@ points rate and a probability-weighted minutes expectation:
 xPts = xPts_per_90 * (expected_minutes / 90)
 ```
 
-It is implemented as **three independently testable engines** plus one
-orchestration service. **No existing code path is modified** — the V2 pipeline,
-ledger and UI continue to run untouched. The V3 output is a *separate*
-append-only prediction version that the existing validation platform can score
-and compare.
+It is implemented as **three independently testable engines** plus an
+orchestration service. V3 is the **primary production model**: the assistant
+manager, league intelligence and dashboards consume its projections by default.
+V2 continues running as the shadow/control model, and both persist as *separate*
+append-only prediction versions that the validation platform scores and compares.
 
 | Component | File | Responsibility |
 |---|---|---|
 | Expected Points Engine | `engines/expected_points_engine.py` | `xPts_per_90` from underlying xGI, CS probability, bonus, saves, cards, set pieces |
 | Expected Minutes Engine | `engines/expected_minutes_engine.py` | `expected_minutes` = start prob × minutes-if-starting × (1 − sub risk) |
 | Expected Projection Engine | `engines/expected_projection_engine.py` | Compositor: the xPts formula, CIs, and V2-compatible output shape |
-| Expected Pipeline | `services/expected_pipeline.py` | Side-by-side run: V3 + V2 baseline + alignment report + persistence |
-| Config | `config/expected_points/`, `config/expected_minutes/` | Versioned parameters (registered in `config/active.yaml`) |
+| Production Predictor | `services/production_predictor.py` | Runs the primary (V3) model + shadow (V2) models, persists append-only |
+| Expected Pipeline | `services/expected_pipeline.py` | Comparison + persistence helpers |
+| Config | `config/expected_points/`, `config/expected_minutes/`, `config/production/` | Versioned parameters (registered in `config/active.yaml`) |
 
 **Design constraints honoured:**
 - **Feature Store is the single source of truth.** The new engines read only
@@ -36,8 +40,9 @@ and compare.
   `validate_version()` work unchanged.
 - **Append-only, idempotent persistence.** Re-running the same gameweek returns
   the same version IDs.
-- **Zero production behaviour change.** Nothing in `services/pipeline.py` or the
-  UI is altered.
+- **Config-driven model selection.** Production paths read
+  `get_primary_model_id()` / `get_shadow_model_ids()`; they never hard-code a
+  model id.
 
 ### 1.1 Data flow
 
@@ -220,20 +225,21 @@ Once actuals arrive, the standard flow applies with no new machinery:
 3. `compare_expected_vs_baseline()` → `compare_versions()` from the validation
    engine → improvement %, per-version metrics, winner.
 
-### 4.3 Evidence-based promotion
+### 4.3 Ongoing validation & drift control
 
-The engineering directive requires **evidence before adoption**. V3 becomes the
-production model only after it demonstrates a sustained improvement over V2 on
-real gameweeks:
+V3 is the production model; V1/V2 are the shadow/control group. The evidence
+framework now governs **continued trust in V3**, not one-time promotion:
 
 - **≥ 3 gameweeks** of validation data before any weight or calibration change
-- MAE and RMSE both strictly better than V2, with no bias regression
+- MAE and RMSE on both V3 and the V2 control group, with bias monitoring
 - CI coverage within tolerance (80% interval covering ~80%, 95% covering ~95%)
 - consistency across positions (no single-position regression paying for a
   headline gain)
 
-Until then V3 remains a shadow candidate — computed, validated and compared,
-but never wired into the UI or the existing pipeline.
+A sustained control-group divergence (V2 drifting away from V3, or either model
+calibrating badly) is a **drift signal** and triggers investigation. Shadow
+models are never removed or deprecated — they stay persisted and validated so
+every production claim is auditable against the control group over time.
 
 ## 5. Bug fix note
 
@@ -246,10 +252,10 @@ works as documented.
 
 ## 6. Comparison & Explainability Layer
 
-A scientific-validation UI layer wraps the shadow-model comparison so that
-**every** V2-vs-V3 claim is backed by evidence and every V3 forecast is
-explainable. This is evaluation infrastructure only — it adds no prediction
-logic and touches no production path.
+A scientific-validation UI layer wraps the production-vs-shadow comparison so
+that **every** V2-vs-V3 claim is backed by evidence and every V3 forecast is
+explainable. It is evaluation infrastructure: V3 is the production model, V2 the
+validated control group.
 
 | Component | File | Responsibility |
 |---|---|---|
@@ -290,7 +296,8 @@ produces a single `ComparisonReport`:
 | statistically_significant | 10+ | High confidence — actionable. |
 
 The dashboard renders this as an evidence **ladder**; reaching the next tier is
-always explicit (`gameweeks_to_next_level`) and promotion is never automatic.
+always explicit (`gameweeks_to_next_level`) and model changes are never
+automatic.
 
 ### 6.3 Explainability panel
 
@@ -309,7 +316,7 @@ disagrees with V2, the driver (usually the minutes model) is visible per player.
 ```bash
 python -m pytest tests/test_comparison_reports.py   # 14 tests
 
-streamlit run app.py                                # then open "Model Comparison"
+streamlit run About.py                                # then open "Model Comparison"
 ```
 
 In the dashboard: pick a gameweek, optionally check **Persist V3 version to

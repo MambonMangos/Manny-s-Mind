@@ -126,7 +126,7 @@ def run_expected_points_comparison(
 
     # 4. Persist the V3 version (idempotent, append-only)
     if persist and session is not None:
-        expected_version_id = _persist_expected_version(
+        expected_version_id = persist_expected_version(
             session, store, expected_projections, gameweek_id,
         )
         result.expected_version_id = expected_version_id
@@ -137,6 +137,21 @@ def run_expected_points_comparison(
         logger.warning("persist=True but no session provided — V3 not persisted")
 
     return result
+
+
+def persist_expected_version(
+    session,
+    store,
+    expected_projections: list[ExpectedPlayerProjection],
+    gameweek_id: int,
+) -> int:
+    """Persist the V3 forecast as an append-only prediction version.
+
+    Idempotent: if a version with the same tag already exists, its id is
+    returned and nothing is written. Public entry point used by the production
+    predictor so all V3 persistence flows through one code path.
+    """
+    return _persist_expected_version(session, store, expected_projections, gameweek_id)
 
 
 def compare_expected_vs_baseline(

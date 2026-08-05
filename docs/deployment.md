@@ -70,7 +70,7 @@ On first run the app also fetches the full FPL dataset (~1–2 MB) from the API.
 ## 5. Start Streamlit
 
 ```bash
-streamlit run app.py --server.headless true --server.port 8501
+streamlit run About.py --server.headless true --server.port 8501
 ```
 
 Open `http://localhost:8501`. The Streamlit server settings live in `.streamlit/config.toml`; port/address can also be overridden with `--server.*` flags or the `STREAMLIT_*` environment variables.

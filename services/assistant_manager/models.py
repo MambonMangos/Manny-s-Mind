@@ -49,6 +49,9 @@ class PlayerAssessment:
     # Overall rating for this player 0–100
     squad_rating: float = 0.0
 
+    # V3 expected points (xPts) for the current gameweek, when available
+    projected_points: float = 0.0
+
 
 @dataclass
 class FixtureInfo:
@@ -191,5 +194,9 @@ class AssistantReport:
     # Section 7
     executive_summary: str = ""
 
-    # V2 Pipeline Output (populated when V2 pipeline runs)
-    v2_pipeline_result: object | None = None  # PipelineResult from services/pipeline.py
+    # Production prediction output (V3 primary + V1/V2 shadow models).
+    production_pipeline_result: object | None = None  # ProductionPredictionResult
+    production_model_id: str | None = None
+
+    # League Intelligence Layer (consumes the V3 production projections).
+    league_intelligence: object | None = None  # LeagueIntelligenceReport

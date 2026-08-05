@@ -15,13 +15,35 @@ def rank_captains(
 ) -> pd.DataFrame:
     """Pick the top N captain candidates from the squad.
 
+    If the squad DataFrame carries a ``projected_points`` column (the V3
+    production xPts), that drives the ranking. Otherwise it falls back to the
+    legacy ``value_score`` approach.
+
     If fixture_map is provided, incorporates fixture difficulty into the ranking.
     This is the SINGLE implementation — never compute captain rankings inline.
     """
-    if squad_df.empty or "value_score" not in squad_df.columns:
+    if squad_df.empty:
+        return pd.DataFrame()
+    if (
+        "projected_points" not in squad_df.columns
+        and "value_score" not in squad_df.columns
+    ):
         return pd.DataFrame()
 
-    candidates = squad_df.nlargest(top_n * 2, "value_score").copy()
+    candidates = squad_df.copy()
+
+    # V3 xPts drive the ranking when present; otherwise legacy value score.
+    if "projected_points" in candidates.columns:
+        candidates["captain_pts"] = pd.to_numeric(
+            candidates["projected_points"], errors="coerce"
+        )
+        candidates = candidates.dropna(subset=["captain_pts"])
+        if candidates.empty:
+            return pd.DataFrame()
+    else:
+        candidates["captain_pts"] = candidates["value_score"]
+
+    candidates = candidates.nlargest(top_n * 2, "captain_pts")
 
     # If fixture map available, adjust by upcoming difficulty
     if fixture_map is not None and "team_id" in candidates.columns:
@@ -36,9 +58,9 @@ def rank_captains(
             avg_diffs.append(avg_d3)
         candidates["avg_fixture_difficulty"] = avg_diffs
         # Lower difficulty = easier fixtures = bonus
-        candidates["captain_score"] = candidates["value_score"] + (5 - candidates["avg_fixture_difficulty"]) * 3
+        candidates["captain_score"] = candidates["captain_pts"] + (5 - candidates["avg_fixture_difficulty"]) * 3
     else:
-        candidates["captain_score"] = candidates["value_score"]
+        candidates["captain_score"] = candidates["captain_pts"]
 
     candidates = candidates.nlargest(top_n, "captain_score")
     candidates = candidates[

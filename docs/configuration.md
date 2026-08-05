@@ -42,18 +42,40 @@ active_versions:
   fixtures: fixtures_v1
   minutes: minutes_v1
   prediction: prediction_v1
+  expected_points: expected_points_v1
+  expected_minutes: expected_minutes_v1
   bookmaker: bookmaker_v1
   features: features_v1
+  league_intelligence: league_intelligence_v1
+  production: production_v1
 ```
 
 | Category | Purpose | Key files |
 |---|---|---|
 | `weights` | Value-score, projection, rating, transfer, opportunity weights | `weights_v1..v3.yaml` |
 | `prediction` | Projection windows, FPL point values, CI z-scores, variance sources, thresholds | `prediction_v1.yaml` |
+| `expected_points` | V3 xPts model parameters (rates, minutes blend, CI variance sources) | `expected_points_v1.yaml` |
+| `expected_minutes` | V3 expected-minutes projection parameters | `expected_minutes_v1.yaml` |
 | `features` | Feature engineering windows, trends, market, regression, fixture thresholds | `features_v1.yaml` |
 | `fixtures` | Fixture difficulty configuration | `fixtures_v1.yaml` |
 | `minutes` | Minutes projection parameters | `minutes_v1.yaml` |
 | `bookmaker` | Bookmaker-engine parameters | `bookmaker_v1.yaml` |
+| `league_intelligence` | League Intelligence Layer weights, exposure tiers, analysis thresholds | `league_intelligence_v1.yaml` |
+| `production` | Production model selection: which model is primary and which run as shadow/control | `production_v1.yaml` |
+
+The `production` category is the **single source of truth** for which prediction
+model drives every production path. `production_v1.yaml` declares:
+
+```yaml
+primary_model: expected_points_v1   # V3 xPts — the production model
+shadow_models:                      # V1/V2 — control group, never removed
+  - projection_v2
+```
+
+Helpers in `utils/config.py` (`get_production_config`, `get_primary_model_id`,
+`get_shadow_model_ids`) expose these; services and pages must read them instead
+of hard-coding model ids. When promoting a different model, add a new
+`production_vN.yaml` and point `active.yaml` at it.
 
 ### Changing a Weight (example)
 
