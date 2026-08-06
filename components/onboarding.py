@@ -68,7 +68,7 @@ def render_onboarding() -> None:
             "Your Fantasy Premier League Team ID",
             value=default_value,
             key=_INPUT_KEY,
-            placeholder="e.g. 472930",
+            placeholder="e.g. 123456",
             help="Find it in the URL when logged in at fantasy.premierleague.com — "
             "it is the number after /entry/.",
         )
@@ -100,8 +100,8 @@ def render_onboarding() -> None:
 1. Go to **[fantasy.premierleague.com](https://fantasy.premierleague.com)** and log in.
 2. Click **"My Team"** in the top navigation.
 3. Look at the web address in your browser. It ends with something like
-   `/entry/472930/`.
-4. The number after `/entry/` — here `472930` — is your Team ID.
+   `/entry/123456/`.
+4. The number after `/entry/` — here `123456` — is your Team ID.
 5. Type that number into the box above and click **Continue**.
 
 Your Team ID is public information on the FPL website — anyone can look up

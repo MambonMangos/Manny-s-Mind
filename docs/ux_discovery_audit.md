@@ -20,7 +20,7 @@
 | Styling | Custom **CSS injected via `st.markdown(unsafe_allow_html=True)`** + `.streamlit/config.toml` dark theme | `components/theme.py:83`, `.streamlit/config.toml` |
 | Data layer | SQLite via SQLAlchemy (`data/moneyball.db`), Alembic migrations | `database/database.py:17`, `alembic/` |
 | Backend | All in-process Python — no server/client separation, no REST API | `services/`, `engines/`, `features/` |
-| Auth | **None** — open, single-user (default team ID `472930`) | `utils/constants.py:56` |
+| Auth | **None** — open, single-user (default team ID `<developer's team ID>`) | `utils/constants.py:56` |
 
 ### 1.2 Navigation Structure
 

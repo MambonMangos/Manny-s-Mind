@@ -64,10 +64,10 @@ def test_no_default_team_when_unset(monkeypatch):
 
 def test_session_persistence(monkeypatch):
     state = _patch(monkeypatch)
-    set_current_team_id(472930)
-    assert get_current_team_id() == 472930
+    set_current_team_id(123456)
+    assert get_current_team_id() == 123456
     assert is_onboarded()
-    assert state["team_id"] == 472930
+    assert state["team_id"] == 123456
 
 
 def test_set_then_get_roundtrips(monkeypatch):
@@ -91,7 +91,7 @@ def test_corrupt_session_value_is_cleared(monkeypatch):
 
 def test_change_team_clears(monkeypatch):
     _patch(monkeypatch)
-    set_current_team_id(472930)
+    set_current_team_id(123456)
     clear_current_team_id()
     assert get_current_team_id() is None
     assert not is_onboarded()

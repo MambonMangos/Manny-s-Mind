@@ -286,7 +286,7 @@ class AuditLog(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     action = Column(String, nullable=False, index=True)  # e.g. "ingest_results"
-    actor = Column(String, nullable=True)  # e.g. "team:472930"
+    actor = Column(String, nullable=True)  # e.g. "team:123456"
     resource = Column(String, nullable=True)  # e.g. "gameweek:5"
     detail = Column(JSON, nullable=True)  # event-specific payload
     created_at = Column(DateTime, default=datetime.utcnow, index=True)

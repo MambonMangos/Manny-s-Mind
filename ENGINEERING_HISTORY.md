@@ -77,7 +77,7 @@ The application is distinguished by three things that most hobby FPL tools do no
 The project began as a **single owner's personal prototype**: a self-taught builder who
 wanted to stop making FPL decisions on gut feel and instead use data — projections,
 fixtures, value scores, uncertainty — to inform transfers, captaincy and chip strategy.
-It was built "by a beginner" on a single Mac, for a single team (`TEAM_ID = 472930`).
+It was built "by a beginner" on a single Mac, for a single team (`TEAM_ID = <developer's team ID>`).
 
 Over five weeks (late July → early August 2026) it evolved from that prototype into a
 **documented, tested, security-hardened, multi-user public application** with a production
@@ -460,7 +460,7 @@ path) and Data Engineer (data path)
 ┌─────────────────────────────────────────────────────────────┐
 │  Streamlit (app.py + pages/1..8)  — UI rendering            │
 │  • every page called get_session() directly                 │
-│  • hardcoded TEAM_ID = 472930 everywhere                    │
+│  • hardcoded TEAM_ID = <developer's team ID> everywhere     │
 ├─────────────────────────────────────────────────────────────┤
 │  services/  data_loader, scoring, team_service, pipeline,   │
 │             learning_service, snapshot_service, ...          │
@@ -1255,7 +1255,7 @@ was missing was almost entirely infrastructure. Its highest-severity risks:
 |---|---|---|---|
 | R1 | No version control | CRITICAL | Initial commit 2026-07-30 → GitHub |
 | R2 | No migration system (`create_all()` on start) | CRITICAL | Alembic baseline `129653672751` (17 tables, zero drift) |
-| R3 | Single-user hardcoding (`TEAM_ID=472930`) | HIGH | Phase 2 onboarding — team ID is now per-session runtime state |
+| R3 | Single-user hardcoding (`TEAM_ID=<developer's team ID>`) | HIGH | Phase 2 onboarding — team ID is now per-session runtime state |
 | R4 | `.env` support declared but never wired | HIGH | `utils/env.py` loads `.env` at import |
 | R5 | Silent SSL downgrade | HIGH | `FPL_API_ALLOW_INSECURE_SSL=false` default, refuse non-HTTPS |
 | R6 | Logging black hole | HIGH | `utils/logging_setup.py` wired into app startup |
@@ -1393,7 +1393,7 @@ and showed engineering jargon to end users. Phase 1 UX built the foundation:
 ## 9.6 Session management & public onboarding
 
 This is the milestone that turns Manny's FPL House from a personal tool into a **public
-application**. Before it: `TEAM_ID=472930` was a constant; then a `?team_id=` URL param and
+application**. Before it: `TEAM_ID=<developer's team ID>` was a constant; then a `?team_id=` URL param and
 a sidebar widget drove team selection but still defaulted to Manny's team and trusted the
 URL. The final design:
 
@@ -1602,7 +1602,7 @@ post-GW1 refactors); legacy tests that share a file DB or read live config.
 
 The product shifted from a personal tool to a public application along a clear arc:
 
-1. **Personal** — hardcoded `TEAM_ID=472930`; one user; about page confessed "a personal
+1. **Personal** — hardcoded `TEAM_ID=<developer's team ID>`; one user; about page confessed "a personal
    project by a beginner."
 2. **URL-parameter bridge** — `?team_id=` let visitors select a team but still defaulted to
    Manny's and trusted the URL.

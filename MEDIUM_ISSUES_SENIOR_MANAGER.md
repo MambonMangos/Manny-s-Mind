@@ -82,7 +82,7 @@ Both test files load YAML configs from the live `config/` directory. This makes 
 
 ### M-13: Hardcoded TEAM_ID
 
-The user's team ID (`472930`) is hardcoded in `constants.py` with no environment-variable fallback. The app cannot be deployed for another user without modifying source code. A `TEAM_ID` env var with this value as default is the recommended path.
+The developer's personal team ID is hardcoded in `constants.py` with no environment-variable fallback. The app cannot be deployed for another user without modifying source code. A `TEAM_ID` env var with the personal team ID as default is the recommended path.
 
 ---
 

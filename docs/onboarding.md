@@ -43,7 +43,7 @@ The sidebar always shows:
 
 ```
 Current Team
-472930
+123456
 [ Change Team ]
 ```
 
@@ -100,7 +100,7 @@ page that continues executing.
 ```python
 from utils.team_context import set_current_team_id, clear_current_team_id
 
-set_current_team_id(472930, team_name="The Gunners")
+set_current_team_id(123456, team_name="The Gunners")
 clear_current_team_id()
 ```
 
@@ -128,7 +128,7 @@ optional `team_id` and resolves it from the session Team Context when omitted.
 ```python
 from services.team_validation import validate_team_id, TeamValidationStatus
 
-result = validate_team_id("472930")
+result = validate_team_id("123456")
 result.status       # TeamValidationStatus.{VALID, INVALID_INPUT, NOT_FOUND, ERROR}
 result.team_id      # int | None
 result.team_name    # str
@@ -146,8 +146,8 @@ result.message      # user-friendly, safe to display
 
 1. Go to [fantasy.premierleague.com](https://fantasy.premierleague.com) and log in.
 2. Click **"My Team"** in the top navigation.
-3. Look at the web address in your browser — it ends with `/entry/472930/`.
-4. The number after `/entry/` (here `472930`) is your Team ID.
+3. Look at the web address in your browser — it ends with `/entry/123456/`.
+4. The number after `/entry/` (here `123456`) is your Team ID.
 5. Enter that number on the onboarding page and click **Continue**.
 
 Team IDs are public on the FPL website — anyone can look up any team by ID.

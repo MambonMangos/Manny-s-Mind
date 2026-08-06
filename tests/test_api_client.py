@@ -33,9 +33,9 @@ def test_refuses_non_https():
 def test_redact_url_hides_entry_ids():
     """SEC-02: /entry/<id> path segments are redacted."""
     redacted = api_client._redact_url(
-        "https://fantasy.premierleague.com/api/entry/472930/transfers"
+        "https://fantasy.premierleague.com/api/entry/123456/transfers"
     )
-    assert "472930" not in redacted
+    assert "123456" not in redacted
     assert redacted == "https://fantasy.premierleague.com/api/entry/{team_id}/transfers"
     print("PASS: entry ids redacted from URLs")
 
@@ -85,10 +85,10 @@ def test_retry_exhaustion_raises():
         mock.patch.object(api_client, "FPL_API_ALLOW_INSECURE_SSL", False),
         pytest.raises(Exception) as exc_info,
     ):
-        api_client.fpl_get("entry/472930", timeout=1, max_retries=2)
+        api_client.fpl_get("entry/123456", timeout=1, max_retries=2)
 
     assert "503 error for" in str(exc_info.value)
-    assert "472930" not in str(exc_info.value), (
+    assert "123456" not in str(exc_info.value), (
         "HTTPError message must be redacted (no raw entry id)"
     )
     print("PASS: retries exhausted and raised with redacted URL")

@@ -255,7 +255,7 @@
 
 #### M-13: Hardcoded TEAM_ID
 - **File:** `utils/constants.py:19`
-- **Issue:** `TEAM_ID: int = 472930` — no environment variable fallback.
+- **Issue:** `TEAM_ID: int = <developer's team ID>` — no environment variable fallback.
 - **Risk:** Cannot deploy for another user. Single-user only.
 
 #### M-14: Feature Store Has No Cache Invalidation

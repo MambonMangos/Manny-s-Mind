@@ -33,7 +33,7 @@ The core architecture is genuinely strong for a personal project: a layered desi
 |---|------|----------|
 | R1 | **No version control at all** — project is not a git repo | CRITICAL |
 | R2 | **No database migration system** — `create_all()` on every start | CRITICAL |
-| R3 | **Single-user assumptions baked in** — `TEAM_ID=472930` hardcoded, staleness tracked in-process | HIGH |
+| R3 | **Single-user assumptions baked in** — `TEAM_ID=<developer's team ID>` hardcoded, staleness tracked in-process | HIGH |
 | R4 | **`.env` support is declared but never wired up** — `python-dotenv` installed, `load_dotenv()` never called | HIGH |
 | R5 | **SSL verification silently disabled on failure** (`verify=False`) with warnings suppressed | HIGH |
 | R6 | **Logging is not configured** — Python logs are dropped, only Streamlit's own UI errors surface | HIGH |
@@ -68,7 +68,7 @@ The core architecture is genuinely strong for a personal project: a layered desi
 
 1. **No version control.** There is no `.git` directory. The repository cannot be shared, reviewed, or rolled back.
 2. **No migration system.** `Base.metadata.create_all()` (`database/database.py:34`) creates tables on startup. Any schema evolution requires manual intervention.
-3. **Single-user identity is hardcoded.** `TEAM_ID: int = 472930` (`utils/constants.py:19`) is the personal FPL team used by every page. A public deployment would expose one manager's private data and cannot be personalised.
+3. **Single-user identity is hardcoded.** `TEAM_ID: int = <developer's team ID>` (`utils/constants.py:19`) is the personal FPL team used by every page. A public deployment would expose one manager's private data and cannot be personalised.
 4. **Environment files are not actually loaded.** `python-dotenv` is installed and `.env.example` exists, but `load_dotenv()` is never called. `DATABASE_URL` works only if exported in the shell environment.
 5. **Logging is unconfigured.** No `logging.basicConfig`/`dictConfig` anywhere in application code. `logger.warning/info` calls in `api_client.py`, `data_loader.py`, etc. have no handlers → silently discarded.
 6. **Data freshness is an in-process singleton.** `_staleness_tracker` (`services/data_loader.py:173`) resets on every restart, so a fresh boot always considers data stale and triggers a full FPL API re-fetch on first page load.
@@ -158,7 +158,7 @@ Current configuration lives in two places: `utils/constants.py` (hardcoded) and 
 
 | Current Location | Value | Recommendation | Why |
 |---|---|---|---|
-| `utils/constants.py:19` | `TEAM_ID = 472930` | Move to env var `FPL_TEAM_ID` with fallback to current default | Personal identifier; must not be public/baked-in; enables per-user instances later |
+| `utils/constants.py:19` | `TEAM_ID = <developer's team ID>` | Move to env var `FPL_TEAM_ID` with fallback to current default | Personal identifier; must not be public/baked-in; enables per-user instances later |
 | `utils/constants.py:23` | `FPL_API_BASE_URL` | Env var `FPL_API_BASE_URL` | Allows testing against a stub/mirror; no code change required to redirect |
 | `utils/constants.py:24` | `FPL_USER_AGENT` | Env var `FPL_USER_AGENT` | API etiquette; identifiable source |
 | `services/api_client.py:25-27` | `_TIMEOUT=30`, `_MAX_RETRIES=3`, `_BACKOFF_BASE=1.0` | Config block `api.timeout/retries/backoff` | Host environments may need different network tolerances |
