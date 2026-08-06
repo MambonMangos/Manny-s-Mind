@@ -41,11 +41,13 @@ Edit `.env` for your environment. The defaults are safe for local development. K
 | Variable | Default | Purpose |
 |---|---|---|
 | `DATABASE_URL` | `sqlite:///data/moneyball.db` | Database location |
-| `FPL_TEAM_ID` | `472930` | FPL team used for team pages |
 | `FPL_API_BASE_URL` | `https://fantasy.premierleague.com/api` | FPL API endpoint |
 | `FPL_API_ALLOW_INSECURE_SSL` | `false` | Never enable in production |
 | `DATA_STALENESS_SECONDS` | `3600` | Refresh cadence for FPL data |
 | `LOG_LEVEL` / `LOG_FILE` | `INFO` / unset | Logging level and file |
+
+There is **no** `FPL_TEAM_ID` — the visitor's Team ID is runtime state set on
+the onboarding page (see `docs/onboarding.md`).
 
 See `docs/configuration.md` for the full reference.
 

@@ -7,19 +7,20 @@ import plotly.express as px
 import streamlit as st
 
 from components.metrics import render_metric_card
-from components.theme import inject_theme, page_header, section_label, section_title, divider
 from components.sidebar import render_refresh_button
-from database.database import get_session
+from components.theme import (
+    divider,
+    inject_theme,
+    page_header,
+    section_label,
+)
 from services.team_service import (
-    GameweekPicks,
     ManagerProfile,
-    Pick,
     SeasonHistory,
-    Transfer,
     fetch_team_data,
 )
 from utils.helpers import ensure_data_loaded
-from utils.constants import get_active_team_id
+from utils.team_context import require_team
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -28,6 +29,7 @@ from utils.constants import get_active_team_id
 st.set_page_config(page_title="Team History", layout="wide")
 inject_theme()
 
+team_id = require_team()
 ensure_data_loaded()
 render_refresh_button()
 
@@ -53,11 +55,11 @@ def _load_history(team_id: int) -> dict:
     }
 
 
-raw = _load_history(get_active_team_id())
+raw = _load_history(team_id)
 
 # Reconstruct
 profile = ManagerProfile(
-    id=get_active_team_id(),
+    id=team_id,
     name=raw["profile_name"],
     team_name=raw["profile_team_name"],
     region=raw["profile_region"],

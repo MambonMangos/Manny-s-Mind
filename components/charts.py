@@ -10,7 +10,7 @@ from __future__ import annotations
 import plotly.graph_objects as go
 import streamlit as st
 
-from components.theme import COLOR_ACCENT_INDIGO, style_chart
+from components.theme import style_chart
 
 
 def render_horizontal_bar(
@@ -50,14 +50,14 @@ def render_horizontal_bar(
         hovertemplate=hover_template,
     ))
 
-    style_chart(fig, height=height, margin=dict(l=10, r=60, t=10, b=10))
+    style_chart(fig, height=height, margin={"l": 10, "r": 60, "t": 10, "b": 10})
     fig.update_xaxes(title=x_title)  # set after style_chart to avoid override
 
     st.plotly_chart(fig, use_container_width=True)
 
 
 def render_vertical_bar(
-    df,  # noqa: ANN001
+    df,
     x: str,
     y: str,
     title: str = "",

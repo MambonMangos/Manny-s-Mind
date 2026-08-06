@@ -20,7 +20,6 @@ def run_assistant(*args, **kwargs):
 
 
 __all__ = [
-    "run_assistant",
     "AssistantReport",
     "ChipRecommendation",
     "FixtureInfo",
@@ -30,4 +29,5 @@ __all__ = [
     "SquadEvaluation",
     "TransferPlan",
     "TransferRecommendation",
+    "run_assistant",
 ]

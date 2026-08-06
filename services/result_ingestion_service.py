@@ -16,16 +16,14 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from database.crud import (
-    get_latest_version_for_gw,
     get_prediction_versions,
     get_projections,
-    update_projection_actuals_bulk,
     update_prediction_version_metrics,
+    update_projection_actuals_bulk,
 )
 from database.models import Gameweek, PlayerGameweekStat, Projection
 from services.api_client import fpl_get

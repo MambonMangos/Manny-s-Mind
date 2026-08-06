@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
-
 from requests import HTTPError
 
 from services.api_client import fpl_get

@@ -15,7 +15,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import numpy as np
 import pandas as pd
 
 from utils.config import load_config
@@ -48,7 +47,7 @@ class RegressionSignal:
 
 
 def compute_regression_signals(
-    store,  # noqa: ANN001
+    store,
 ) -> list[RegressionSignal]:
     """Analyze all players for regression-to-mean signals.
 
@@ -73,7 +72,7 @@ def compute_regression_signals(
 
 
 def apply_regression_adjustments(
-    projections: list,  # noqa: ANN001
+    projections: list,
     signals: list[RegressionSignal],
 ) -> list:
     """Apply regression adjustments to projections.

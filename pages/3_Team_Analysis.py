@@ -5,16 +5,15 @@ from __future__ import annotations
 import plotly.express as px
 import streamlit as st
 
+from components.sidebar import render_refresh_button
 from components.tables import render_team_table
 from components.theme import (
+    divider,
     inject_theme,
     page_header,
     section_label,
-    section_title,
-    divider,
     style_px_chart,
 )
-from components.sidebar import render_refresh_button
 from database.database import get_session
 from services.player_service import get_scored_players, get_team_summary
 from utils.helpers import ensure_data_loaded

@@ -14,10 +14,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
-
-import numpy as np
-import pandas as pd
 
 from utils.config import load_config
 
@@ -74,8 +70,8 @@ class BookmakerProjection:
 
 
 def project_from_odds(
-    store,  # noqa: ANN001
-    projections: list,  # noqa: ANN001
+    store,
+    projections: list,
     odds_data: list[FixtureOdds] | None = None,
 ) -> list[BookmakerProjection]:
     """Enhance projections with bookmaker odds data.
@@ -112,7 +108,7 @@ def project_from_odds(
 
 
 def apply_bookmaker_adjustments(
-    projections: list,  # noqa: ANN001
+    projections: list,
     bookmaker_projections: list[BookmakerProjection],
 ) -> list:
     """Apply bookmaker adjustments to base projections."""
@@ -152,8 +148,8 @@ def _build_odds_lookup(
 
 
 def _compute_player_odds_boost(
-    proj,  # noqa: ANN001
-    store,  # noqa: ANN001
+    proj,
+    store,
     odds_by_team: dict,
 ) -> BookmakerProjection:
     """Compute bookmaker adjustments for a single player."""
@@ -173,7 +169,6 @@ def _compute_player_odds_boost(
     # Determine if player's team is home or away
     is_home = odds.home_team_id == team_id
     team_goals_exp = odds.home_goals_expected if is_home else odds.away_goals_expected
-    opp_goals_exp = odds.away_goals_expected if is_home else odds.home_goals_expected
     cs_prob = odds.home_clean_sheet_prob if is_home else odds.away_clean_sheet_prob
 
     # Goals boost: bookmaker expected goals vs xG-based projection
@@ -214,7 +209,7 @@ def _compute_player_odds_boost(
 
 
 def _no_odds_projections(
-    projections: list,  # noqa: ANN001
+    projections: list,
 ) -> list[BookmakerProjection]:
     """Return zero-boost projections when no odds data is available."""
     return [

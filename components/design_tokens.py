@@ -119,7 +119,7 @@ EVIDENCE_LEVELS: dict[str, dict] = {
     "needs_more_data": {"label": "Needs More Data", "icon": "🟡", "min_gameweeks": 2, "color_key": "evidence_needs_data"},
     "moderate": {"label": "Moderate", "icon": "🟠", "min_gameweeks": 3, "color_key": "evidence_moderate"},
     "strong": {"label": "Strong", "icon": "🟢", "min_gameweeks": 5, "color_key": "evidence_strong"},
-    "statistically_significant": {"label": "Statistically Significant", "icon": "✅", "min_gameweeks": 10, "color_key": "evidence_significant"},
+    "statistically_significant": {"label": "Established Evidence", "icon": "✅", "min_gameweeks": 10, "color_key": "evidence_significant"},
 }
 
 CONFIDENCE_LEVELS: dict[str, dict] = {

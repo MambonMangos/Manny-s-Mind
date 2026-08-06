@@ -16,19 +16,17 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
 
 import numpy as np
 from sqlalchemy.orm import Session
 
 from database.crud import (
-    get_engine_accuracy,
     get_projections,
     get_validation_metrics,
     insert_engine_accuracy,
     insert_validation_metrics,
 )
-from database.models import Player, ValidationMetrics
+from database.models import Player
 
 logger = logging.getLogger(__name__)
 
@@ -131,9 +129,12 @@ def validate_version(
             if p.ci_80_low <= p.actual_points <= p.ci_80_high:
                 ci_80_hits += 1
             ci_widths.append(p.ci_80_high - p.ci_80_low)
-        if p.ci_95_low is not None and p.ci_95_high is not None:
-            if p.ci_95_low <= p.actual_points <= p.ci_95_high:
-                ci_95_hits += 1
+        if (
+            p.ci_95_low is not None
+            and p.ci_95_high is not None
+            and p.ci_95_low <= p.actual_points <= p.ci_95_high
+        ):
+            ci_95_hits += 1
 
     report.coverage_80 = ci_80_hits / len(with_actuals) if with_actuals else 0
     report.coverage_95 = ci_95_hits / len(with_actuals) if with_actuals else 0
@@ -184,7 +185,7 @@ def validate_engine_contributions(
     session: Session,
     version_id: int,
     gameweek_id: int,
-    store=None,  # noqa: ANN001 — FeatureStore, optional
+    store=None,
 ) -> list[dict]:
     """Analyze per-engine contribution to prediction accuracy.
 

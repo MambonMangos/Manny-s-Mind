@@ -7,29 +7,30 @@ automatically on the next page load.
 
 from __future__ import annotations
 
-import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
 from components.formation import get_or_build_formation, get_positions
 from components.metrics import render_metric_card
-from components.theme import inject_theme, page_header, section_label, section_title, divider
 from components.sidebar import render_refresh_button
+from components.theme import (
+    divider,
+    inject_theme,
+    page_header,
+    section_label,
+)
 from database.database import get_session
 from services.player_service import get_scored_players
 from services.team_service import (
     GameweekPicks,
     ManagerProfile,
-    Pick,
-    SeasonHistory,
-    Transfer,
     build_transfer_log,
     fetch_team_data,
     recommend_captain,
     resolve_player_names,
 )
 from utils.helpers import ensure_data_loaded
-from utils.constants import get_active_team_id
+from utils.team_context import require_team
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -38,6 +39,7 @@ from utils.constants import get_active_team_id
 st.set_page_config(page_title="My Team", layout="wide")
 inject_theme()
 
+team_id = require_team()
 ensure_data_loaded()
 render_refresh_button()
 
@@ -45,12 +47,12 @@ render_refresh_button()
 # Fetch data – no cache so picks refresh on every page load
 # ---------------------------------------------------------------------------
 
-raw = fetch_team_data(get_active_team_id())
+raw = fetch_team_data(team_id)
 
 # Reconstruct dataclasses from live API data
 
 profile = ManagerProfile(
-    id=get_active_team_id(),
+    id=team_id,
     name=raw.profile.name,
     team_name=raw.profile.team_name,
     region=raw.profile.region,
@@ -145,14 +147,14 @@ if available_gws:
 
         # Pitch outline
         fig.add_shape(type="rect", x0=0, y0=0, x1=1, y1=1,
-                      fillcolor=PITCH_GREEN, line=dict(color="white", width=2.5), layer="below")
+                      fillcolor=PITCH_GREEN, line={"color": "white", "width": 2.5}, layer="below")
 
         # Centre circle + spot
         cr = 0.146
         fig.add_shape(type="circle", x0=0.5 - cr, y0=0.5 - cr, x1=0.5 + cr, y1=0.5 + cr,
-                      line=dict(color="white", width=1.5), fillcolor="rgba(0,0,0,0)", layer="below")
+                      line={"color": "white", "width": 1.5}, fillcolor="rgba(0,0,0,0)", layer="below")
         fig.add_shape(type="circle", x0=0.49, y0=0.493, x1=0.51, y1=0.507,
-                      fillcolor="white", line=dict(color="white", width=0), layer="below")
+                      fillcolor="white", line={"color": "white", "width": 0}, layer="below")
 
         # Player markers
         for p in player_positions:
@@ -169,7 +171,7 @@ if available_gws:
 
             fig.add_trace(go.Scatter(
                 x=[p["x"]], y=[p["y"]], mode="markers",
-                marker=dict(size=38, color="#e53935", line=dict(color="white", width=bw)),
+                marker={"size": 38, "color": "#e53935", "line": {"color": "white", "width": bw}},
                 hovertext=f"{p['web_name']} ({p['team_short']})",
                 hoverinfo="text", showlegend=False,
             ))
@@ -177,16 +179,16 @@ if available_gws:
                 x=p["x"], y=p["y"],
                 text=f"<b>{p['web_name']}{badge}</b><br><span style='font-size:9px'>{p['team_short']}</span>",
                 showarrow=False, yshift=-28,
-                font=dict(size=11, color="white", family="Inter, sans-serif"), align="center",
+                font={"size": 11, "color": "white", "family": "Inter, sans-serif"}, align="center",
             )
 
         fig.update_layout(
             height=580,
-            margin=dict(l=20, r=20, t=10, b=10),
-            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[-0.04, 1.04]),
-            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[-0.04, 1.08], scaleanchor="x"),
+            margin={"l": 20, "r": 20, "t": 10, "b": 10},
+            xaxis={"showgrid": False, "zeroline": False, "showticklabels": False, "range": [-0.04, 1.04]},
+            yaxis={"showgrid": False, "zeroline": False, "showticklabels": False, "range": [-0.04, 1.08], "scaleanchor": "x"},
             plot_bgcolor=PITCH_GREEN, paper_bgcolor=PITCH_GREEN,
-            hoverlabel=dict(bgcolor="#1a1a2e", bordercolor="#3f3f46", font=dict(size=12, color="white")),
+            hoverlabel={"bgcolor": "#1a1a2e", "bordercolor": "#3f3f46", "font": {"size": 12, "color": "white"}},
         )
 
         _pitch_col, _empty_col = st.columns([1, 1])

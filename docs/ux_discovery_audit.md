@@ -529,7 +529,7 @@ Model Comparison → select GW → (optional) persist V3 → Run Comparison
 6. **Live FPL API dependency** — data freshness driven by a 1-hour staleness tracker (`utils/helpers.py`, `components/sidebar.py`); no DB cache of raw API payloads; FPL API rate limits + retry logic in `services/api_client.py`. UX must handle empty/stale states gracefully.
 7. **Heavy synchronous compute on page load** — Assistant Manager and Model Comparison run full pipelines inside `st.spinner` (`6_Assistant_Manager.py:42`, `8_Model_Comparison.py:249`); no background jobs, no progress persistence.
 8. **Streamlit version pinned** (1.60) — features like `st.tabs`, `st.dataframe` config are available, but newer components (st.navigation, st.connection) depend on upgrade decisions.
-9. **No CI/CD or Docker** — deployment is documented-only (`docs/deployment.md`); no runtime environment variables beyond `.env`.
+9. **CI/CD** — `.github/workflows/ci.yml` now runs lint, dependency checks, secrets scan and tests on every push/PR; there is still **no Docker image or containerised deploy target** — deployment remains documented-only (`docs/deployment.md`) and the app is not yet publicly hosted.
 10. **No screenshots/visual regression tooling** — no Playwright/Streamlit app testing in `requirements-dev.txt`.
 
 ---

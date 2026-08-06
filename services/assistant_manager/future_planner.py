@@ -6,18 +6,14 @@ targets, captaincy windows, and price movement signals.
 
 from __future__ import annotations
 
-from services.assistant_manager.models import (
-    FixtureInfo,
-    FixtureWindow,
-    FuturePlan,
-    PlayerAssessment,
-    SquadEvaluation,
-)
 from engines.fixture_engine import (
-    DIFFICULTY_LABELS,
     build_fixture_map,
     build_fixture_window,
     detect_fixture_swings,
+)
+from services.assistant_manager.models import (
+    FuturePlan,
+    SquadEvaluation,
 )
 
 

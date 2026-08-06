@@ -293,11 +293,12 @@ produces a single `ComparisonReport`:
 | needs_more_data | 2 | Early signal — not yet reliable. |
 | moderate | 3–4 | Consistent pattern emerging — monitor. |
 | strong | 5+ | Reliable pattern (requires consistency ≥ 0.6). |
-| statistically_significant | 10+ | High confidence — actionable. |
+| statistically_significant | 10+ | Established evidence — the most extensive validation available. |
 
 The dashboard renders this as an evidence **ladder**; reaching the next tier is
 always explicit (`gameweeks_to_next_level`) and model changes are never
-automatic.
+automatic. Note: tiers are sample-size maturity heuristics — the platform does
+not compute formal statistical significance (no hypothesis tests or p-values).
 
 ### 6.3 Explainability panel
 

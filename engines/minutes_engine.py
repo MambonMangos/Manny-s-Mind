@@ -49,7 +49,7 @@ class MinutesProjection:
 
 
 def compute_minutes_features(
-    store,  # noqa: ANN001
+    store,
 ) -> pd.DataFrame:
     """Compute minutes projections using the FeatureStore.
 
@@ -74,7 +74,7 @@ def compute_minutes_features(
         minutes_season = float(row.get("minutes", 0) or 0)
         status = str(row.get("status", "a") or "a")
         form = float(row.get("form", 0) or 0)
-        team_id = int(row.get("team_id", 0) or 0)
+        int(row.get("team_id", 0) or 0)
 
         # 1. Tier-based base projection
         minutes_tier = _tier_lookup(minutes_season, tier_map)

@@ -5,8 +5,8 @@ from __future__ import annotations
 import pandas as pd
 from sqlalchemy.orm import Session
 
-from database.crud import get_players_dataframe, get_teams_dataframe
-from services.scoring import add_derived_columns, compute_value_score
+from database.crud import get_players_dataframe
+from services.scoring import compute_value_score
 
 
 def get_scored_players(session: Session) -> pd.DataFrame:

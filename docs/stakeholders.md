@@ -35,7 +35,7 @@ The project is organised into five engineering workstreams. Every component has 
 
 | Item | Owner(s) | Blocked on |
 |---|---|---|
-| Add GitHub remote + push `main` + enable CI | Platform | GitHub access (unavailable for now) |
+| Public onboarding + team context (Phase 2) | Platform + Data | **Done** — see `docs/onboarding.md` |
 | V1 → V2 engine retirement (TD-1) | ML + Data | GW1+ validation evidence |
 | CI/variance single source (TD-3) | ML | None (behaviour-preserving refactor) |
 | Public multi-user DB migration (SQLite → Postgres) | Data + Platform | Hosting decision, Phase 2+ |

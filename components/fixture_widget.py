@@ -7,7 +7,7 @@ import streamlit as st
 
 
 def render_fixture_score_bar(
-    player_fixture_scores: list[dict],  # noqa: ANN001
+    player_fixture_scores: list[dict],
     title: str = "Average Fixture Score",
     gw_range: tuple[int, int] | None = None,
 ) -> None:
@@ -42,15 +42,15 @@ def render_fixture_score_bar(
     fig.update_layout(
         title=title,
         yaxis_title="Fixture Score",
-        yaxis=dict(range=[0, 110]),
+        yaxis={"range": [0, 110]},
         height=350,
     )
     st.plotly_chart(fig, use_container_width=True)
 
 
 def render_fixture_heatmap(
-    pivot_diff,  # noqa: ANN001
-    text_labels,  # noqa: ANN001
+    pivot_diff,
+    text_labels,
 ) -> None:
     """Render a fixture difficulty heatmap.
 
@@ -75,13 +75,13 @@ def render_fixture_heatmap(
         texttemplate="%{text}",
         textfont={"size": 11, "color": "#fafafa"},
         showscale=True,
-        colorbar=dict(title="Difficulty", tickfont=dict(color="#a1a1aa")),
+        colorbar={"title": "Difficulty", "tickfont": {"color": "#a1a1aa"}},
         zmin=1,
         zmax=5,
     ))
     fig.update_layout(
         height=max(300, len(pivot_diff) * 40 + 100),
         xaxis_title="Team",
-        yaxis=dict(autorange="reversed"),
+        yaxis={"autorange": "reversed"},
     )
     st.plotly_chart(fig, use_container_width=True)

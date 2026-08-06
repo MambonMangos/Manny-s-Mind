@@ -27,13 +27,14 @@ Manny's FPL House is a data-driven Fantasy Premier League analytics platform. It
 
 ## Data Flow
 
-1. **Bootstrap** — `About.py` calls `ensure_data_loaded()` (`utils/helpers.py`), which initialises the database and fetches data from the FPL API when stale.
-2. **Ingest** — `services/data_loader.py` fetches `bootstrap-static` (teams, players, gameweeks) and upserts into SQLite. Fixtures, team history, and picks are fetched on demand by `services/fixture_service.py` and `services/team_service.py`.
-3. **Derive** — `services/scoring.py` normalises raw stats and computes the composite value score using the weights in `config/weights/`.
-4. **Feature engineering** — `features/store.py` builds the Feature Store: a per-player, per-gameweek snapshot of derived features (minutes, xGI, fixture difficulty, market signals, regression flags, set pieces, trends).
-5. **Prediction** — `services/production_predictor.py` runs the **V3 production model** (`engines/expected_projection_engine.py`, `xPts = xPts/90 × expected minutes / 90`) and persists it append-only; V2 (`services/pipeline.py` → `projection_v2`) continues running as a **shadow / control** model. Both are written to the prediction ledger so they can be validated against actuals over time.
-6. **League Intelligence** — `services/league_intelligence/` layers league context (effective ownership, differentials, mini-league/rival analysis) **on top of** the V3 production projections to shape recommendations only; it never modifies prediction values (see `docs/league_intelligence.md`).
-7. **Presentation** — pages render rankings, comparisons, team analysis, assistant-manager recommendations, and model analytics.
+1. **Onboarding gate** — every personalized page (and the home page) calls `require_team()` (`utils/team_context.py`). New visitors see the welcome/onboarding page (`components/onboarding.py`); a Team ID is validated against the FPL API (`services/team_validation.py`) before it becomes the session's active team. See `docs/onboarding.md`.
+2. **Bootstrap** — `About.py` calls `ensure_data_loaded()` (`utils/helpers.py`), which initialises the database and fetches data from the FPL API when stale.
+3. **Ingest** — `services/data_loader.py` fetches `bootstrap-static` (teams, players, gameweeks) and upserts into SQLite. Fixtures, team history, and picks are fetched on demand by `services/fixture_service.py` and `services/team_service.py`.
+4. **Derive** — `services/scoring.py` normalises raw stats and computes the composite value score using the weights in `config/weights/`.
+5. **Feature engineering** — `features/store.py` builds the Feature Store: a per-player, per-gameweek snapshot of derived features (minutes, xGI, fixture difficulty, market signals, regression flags, set pieces, trends).
+6. **Prediction** — `services/production_predictor.py` runs the **V3 production model** (`engines/expected_projection_engine.py`, `xPts = xPts/90 × expected minutes / 90`) and persists it append-only; V2 (`services/pipeline.py` → `projection_v2`) continues running as a **shadow / control** model. Both are written to the prediction ledger so they can be validated against actuals over time.
+7. **League Intelligence** — `services/league_intelligence/` layers league context (effective ownership, differentials, mini-league/rival analysis) **on top of** the V3 production projections to shape recommendations only; it never modifies prediction values (see `docs/league_intelligence.md`).
+8. **Presentation** — pages render rankings, comparisons, team analysis, assistant-manager recommendations, and model analytics.
 
 ## Layering Rules
 
@@ -54,6 +55,34 @@ Safe Defaults (utils/constants.py, utils/config.py)
 - `utils/env.py` loads `.env` once at import time.
 - `utils/config.py` loads and caches versioned YAML from `config/`.
 - `utils/constants.py` exposes application constants, many sourced from environment variables with safe defaults.
+
+## Team Context & Session Architecture
+
+The viewer's FPL Team ID is **runtime state, not configuration**. There is no
+default team — an unvalidated visitor has no team, never Manny's team.
+
+```
+Anonymous Visitor
+        ↓
+Enter Team ID  (components/onboarding.py)
+        ↓  validated against the FPL API (services/team_validation.py)
+Session Team Context  (utils/team_context.py ↔ session_state.team_id)
+        ↓
+Every personalized service reads get_current_team_id()
+```
+
+- `utils/team_context.py` is the single provider: `get_current_team_id()`,
+  `set_current_team_id()`, `clear_current_team_id()`, `is_onboarded()`,
+  `seed_from_url()` (URL pre-fill hint, never auto-trusted), and
+  `require_team()` (the page gate — renders onboarding and stops the script
+  when no team exists).
+- Team identity lives only in Streamlit session memory. Nothing is persisted,
+  nothing is logged (API client redacts `/entry/<id>` path segments), and
+  sessions are isolated by Streamlit, so no visitor inherits another's team.
+- A `?team_id=` URL parameter only pre-fills the onboarding input; the team
+  must still be validated by the visitor.
+- This layer is deliberately thin so a future login system can provide a
+  persistent user profile to the same provider without changing call sites.
 
 ## Session & Database Notes
 

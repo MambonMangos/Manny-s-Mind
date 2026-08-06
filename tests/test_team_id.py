@@ -1,11 +1,24 @@
-"""Tests for per-viewer team selection via the ``?team_id=`` URL param and the
-sidebar ``Your FPL team ID`` input."""
+"""Tests for the per-session Team Context provider.
+
+Covers the QA checklist for onboarding/session behaviour: session persistence,
+never defaulting to a personal team, the Change Team workflow (clear/reset),
+multiple sequential team changes, browser-refresh persistence, sidebar reset,
+and URL-based pre-filling of the onboarding input.
+"""
 
 from __future__ import annotations
 
+import pytest
 import streamlit as st
 
-from utils.constants import TEAM_ID, get_active_team_id
+from utils.team_context import (
+    clear_current_team_id,
+    get_current_team_id,
+    is_onboarded,
+    require_team,
+    seed_from_url,
+    set_current_team_id,
+)
 
 
 class _FakeQueryParams:
@@ -17,48 +30,151 @@ class _FakeQueryParams:
         return self._value
 
 
-def _patch(monkeypatch, query_value=None, session_value=None):
+class _Stop(Exception):
+    pass
+
+
+def _raise_stop():
+    raise _Stop()
+
+
+def _patch(monkeypatch, query_value=None, session_state=None):
+    state = dict(session_state) if session_state else {}
     monkeypatch.setattr(st, "query_params", _FakeQueryParams(query_value))
-    state = {} if session_value is None else dict(session_value)
     monkeypatch.setattr(st, "session_state", state)
     return state
 
 
-def test_defaults_to_env_team_id(monkeypatch):
+# ---------------------------------------------------------------------------
+# Never default to a personal team
+# ---------------------------------------------------------------------------
+
+
+def test_no_default_team_when_unset(monkeypatch):
+    state = _patch(monkeypatch)
+    assert get_current_team_id() is None
+    assert not is_onboarded()
+    assert state == {}
+
+
+# ---------------------------------------------------------------------------
+# Session persistence
+# ---------------------------------------------------------------------------
+
+
+def test_session_persistence(monkeypatch):
+    state = _patch(monkeypatch)
+    set_current_team_id(472930)
+    assert get_current_team_id() == 472930
+    assert is_onboarded()
+    assert state["team_id"] == 472930
+
+
+def test_set_then_get_roundtrips(monkeypatch):
     _patch(monkeypatch)
-    assert get_active_team_id() == TEAM_ID
+    set_current_team_id(123)
+    assert get_current_team_id() == 123
+    set_current_team_id(456)
+    assert get_current_team_id() == 456
 
 
-def test_url_param_overrides_env(monkeypatch):
+def test_corrupt_session_value_is_cleared(monkeypatch):
+    state = _patch(monkeypatch, session_state={"team_id": "not-a-number"})
+    assert get_current_team_id() is None
+    assert "team_id" not in state
+
+
+# ---------------------------------------------------------------------------
+# Change Team workflow
+# ---------------------------------------------------------------------------
+
+
+def test_change_team_clears(monkeypatch):
+    _patch(monkeypatch)
+    set_current_team_id(472930)
+    clear_current_team_id()
+    assert get_current_team_id() is None
+    assert not is_onboarded()
+
+
+def test_sidebar_reset_removes_team(monkeypatch):
+    state = _patch(monkeypatch)
+    set_current_team_id(12345)
+    clear_current_team_id()
+    assert "team_id" not in state
+    assert get_current_team_id() is None
+
+
+def test_multiple_sequential_team_changes(monkeypatch):
+    _patch(monkeypatch)
+    set_current_team_id(111)
+    assert get_current_team_id() == 111
+    clear_current_team_id()
+    assert get_current_team_id() is None
+    set_current_team_id(222)
+    assert get_current_team_id() == 222
+    clear_current_team_id()
+    set_current_team_id(333)
+    assert get_current_team_id() == 333
+    assert is_onboarded()
+
+
+def test_browser_refresh_keeps_team(monkeypatch):
+    # A Streamlit rerun/refresh re-executes the script but session_state
+    # persists — the validated team must survive.
+    _patch(monkeypatch)
+    set_current_team_id(999)
+    assert get_current_team_id() == 999
+    assert is_onboarded()
+
+
+# ---------------------------------------------------------------------------
+# require_team gate
+# ---------------------------------------------------------------------------
+
+
+def test_require_team_returns_id_when_onboarded(monkeypatch):
+    _patch(monkeypatch, session_state={"team_id": 777})
+    assert require_team() == 777
+
+
+def test_require_team_renders_onboarding_when_unset(monkeypatch):
+    _patch(monkeypatch)
+    rendered = []
+    monkeypatch.setattr(
+        "components.onboarding.render_onboarding", lambda: rendered.append(True)
+    )
+    monkeypatch.setattr(st, "stop", _raise_stop)
+    with pytest.raises(_Stop):
+        require_team()
+    assert rendered == [True]
+
+
+# ---------------------------------------------------------------------------
+# URL pre-fill seeding (never auto-trusted)
+# ---------------------------------------------------------------------------
+
+
+def test_url_param_seeds_input(monkeypatch):
     _patch(monkeypatch, query_value="12345")
-    assert get_active_team_id() == 12345
+    assert seed_from_url() == 12345
 
 
-def test_url_param_takes_first_of_list(monkeypatch):
+def test_url_param_first_of_list(monkeypatch):
     _patch(monkeypatch, query_value=["111", "222"])
-    assert get_active_team_id() == 111
+    assert seed_from_url() == 111
 
 
-def test_invalid_url_param_falls_back(monkeypatch):
-    _patch(monkeypatch, query_value="not-a-number")
-    assert get_active_team_id() == TEAM_ID
+def test_url_param_invalid_returns_none(monkeypatch):
+    _patch(monkeypatch, query_value="abc")
+    assert seed_from_url() is None
 
 
-def test_session_input_used_when_no_url(monkeypatch):
-    _patch(monkeypatch, session_value={"team_id_input": 999})
-    assert get_active_team_id() == 999
+def test_url_param_out_of_range_returns_none(monkeypatch):
+    _patch(monkeypatch, query_value="999999999999")
+    assert seed_from_url() is None
 
 
-def test_url_overrides_session_input(monkeypatch):
-    _patch(monkeypatch, query_value="12345", session_value={"team_id_input": 999})
-    assert get_active_team_id() == 12345
-
-
-def test_invalid_session_input_falls_back(monkeypatch):
-    _patch(monkeypatch, session_value={"team_id_input": "abc"})
-    assert get_active_team_id() == TEAM_ID
-
-
-def test_missing_streamlit_falls_back(monkeypatch):
-    monkeypatch.setitem(__import__("sys").modules, "streamlit", None)
-    assert get_active_team_id() == TEAM_ID
+def test_url_param_absent_returns_none(monkeypatch):
+    _patch(monkeypatch)
+    assert seed_from_url() is None

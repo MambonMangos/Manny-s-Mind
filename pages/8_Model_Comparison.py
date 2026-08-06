@@ -38,18 +38,21 @@ from database.database import get_session
 from database.models import Gameweek, PredictionVersion
 from engines.fixture_engine import build_fixture_map
 from features import build_feature_store
+from services.audit import log_audit
 from services.comparison_reports import (
     build_comparison_report,
     disagreements_to_dataframe,
 )
 from services.fixture_service import fetch_fixtures
 from services.player_service import get_scored_players
+from utils.access import require_admin
 from utils.config import get_config_hash
-from utils.constants import get_active_team_id
 from utils.helpers import ensure_data_loaded
+from utils.team_context import get_current_team_id, require_team
 
 st.set_page_config(page_title="Model Comparison", layout="wide")
 inject_theme()
+require_team()
 page_header(
     "Model Comparison",
     "V3 production vs V2 shadow model — validate the control group, don't regress.",
@@ -147,7 +150,10 @@ def _load_squad(session, player_df: pd.DataFrame) -> list[int]:
     try:
         from services.team_service import fetch_team_data, resolve_player_names
 
-        team_data = fetch_team_data(get_active_team_id(), gameweeks=list(range(1, 10)))
+        squad_team_id = get_current_team_id()
+        if squad_team_id is None:
+            return []
+        team_data = fetch_team_data(squad_team_id, gameweeks=list(range(1, 10)))
         picks_map = team_data.picks
         if not picks_map:
             return []
@@ -232,12 +238,19 @@ with col_gw:
         help="Run the V3 (production) and V2 (shadow) engines side-by-side for this gameweek.",
     )
 with col_persist:
-    persist = st.checkbox(
-        "Persist V3 version to ledger",
-        value=False,
-        help="Write the V3 forecast as an append-only prediction version "
-             "so it can be validated once actuals arrive.",
-    )
+    if require_admin():
+        persist = st.checkbox(
+            "Persist V3 version to ledger",
+            value=False,
+            help="Write the V3 forecast as an append-only prediction version "
+                 "so it can be validated once actuals arrive.",
+        )
+    else:
+        persist = False
+        st.caption(
+            "Ledger persistence is an admin action — enter the admin "
+            "password in the sidebar to unlock."
+        )
 with col_run:
     run = st.button("Run Comparison", type="primary", use_container_width=True)
 
@@ -270,6 +283,13 @@ with st.spinner("Running V3 + V2 projections and building the comparison report�
             persist=persist,
             current_squad=current_squad,
         )
+        if persist:
+            log_audit(
+                session,
+                "persist_prediction_version",
+                resource=f"gameweek:{selected_gw}",
+                detail={"persist": True},
+            )
         session.commit()
     except Exception as exc:  # noqa: BLE001 - surface failures without crashing
         st.error(f"Comparison failed: {exc}")
@@ -627,7 +647,7 @@ ladder = [
     ("needs_more_data", 2, "Early signal — 2 gameweeks. Not yet reliable."),
     ("moderate", 3, "Consistent pattern across 3–4 gameweeks. Monitor."),
     ("strong", 5, "Reliable pattern across 5+ gameweeks. Candidate for review."),
-    ("statistically_significant", 10, "High confidence across 10+ gameweeks. Actionable."),
+    ("statistically_significant", 10, "Established evidence — validated across 10+ gameweeks. Actionable."),
 ]
 icons = {"weak": "🔴", "needs_more_data": "🟡", "moderate": "🟠", "strong": "🟢", "statistically_significant": "✅"}
 current = report.evidence.get("level", "weak")

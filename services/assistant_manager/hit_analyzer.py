@@ -44,7 +44,7 @@ def analyze_hit(
 
     # Need hits for excess transfers
     excess = n_transfers - free_tfers
-    hit_cost = excess * HIT_COST_PER_TRANSFER
+    excess * HIT_COST_PER_TRANSFER
 
     # Evaluate each recommended transfer individually
     worthwhile: list[TransferRecommendation] = []

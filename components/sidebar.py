@@ -5,41 +5,67 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from utils.constants import POSITIONS, get_active_team_id
-from services.data_loader import DataLoader, get_data_age_seconds
 from database.database import get_session
+from services.data_loader import DataLoader, get_data_age_seconds
+from utils.constants import POSITIONS
+from utils.team_context import get_current_team_id
 
 
-def _render_team_selector() -> None:
-    """Number input for the viewer's FPL team ID (persists per session).
+def render_team_switcher() -> None:
+    """Show the active team with a persistent "Change Team" option.
 
-    A ``?team_id=`` URL param (when present) seeds the widget so the box
-    always shows the active team. The write must happen before the widget is
-    instantiated — Streamlit forbids mutating a widget key after that.
+    Change Team forgets the session's validated Team ID and returns the
+    visitor to the onboarding page — no manual browser-state clearing needed.
     """
-    from streamlit import session_state
+    from utils.team_context import clear_current_team_id
 
-    from utils.constants import query_team_id_from_url
+    team_id = get_current_team_id()
+    if team_id is None:
+        return
+    st.markdown("**Current Team**")
+    st.caption(str(team_id))
+    if st.button("Change Team", use_container_width=True, key="change_team"):
+        clear_current_team_id()
+        try:
+            st.switch_page("About.py")
+        except Exception:  # noqa: BLE001 - fall back to in-place rerun
+            st.rerun()
 
-    url_id = query_team_id_from_url()
-    if url_id is not None:
-        session_state["team_id_input"] = url_id
-    elif "team_id_input" not in session_state:
-        session_state["team_id_input"] = get_active_team_id()
-    st.number_input(
-        "Your FPL team ID",
-        min_value=1,
-        max_value=999_999_999,
-        step=1,
-        key="team_id_input",
-    )
+
+def render_admin_section() -> None:
+    """Admin unlock UI. Only rendered when an ``ADMIN_TOKEN`` is configured."""
+    from utils.access import admin_authorized, is_admin_enforced, is_admin_token_valid
+
+    if not is_admin_enforced():
+        return
+    st.markdown("---")
+    st.markdown("**Admin**")
+    if admin_authorized():
+        st.caption("Admin unlocked for this session.")
+        if st.button("Lock Admin", use_container_width=True, key="admin_lock"):
+            st.session_state["admin_authorized"] = False
+            st.rerun()
+    else:
+        st.caption("Write actions are locked.")
+        st.text_input("Admin password", type="password", key="admin_password")
+        if st.button("Unlock Admin", use_container_width=True, key="admin_unlock"):
+            if is_admin_token_valid(st.session_state.get("admin_password")):
+                st.session_state["admin_authorized"] = True
+                st.rerun()
+            else:
+                st.error("Incorrect admin password")
 
 
 def render_refresh_button() -> None:
-    """Render a team selector, indicator and data refresh button in the sidebar."""
+    """Render a team selector, admin section, indicator and refresh button."""
+    from services.audit import log_audit
+    from utils.access import require_admin
+
     with st.sidebar:
-        _render_team_selector()
-        st.caption(f"Viewing team {get_active_team_id()}")
+        render_team_switcher()
+        team_id = get_current_team_id()
+        if team_id is not None:
+            st.caption(f"Viewing team {team_id}")
         age = get_data_age_seconds()
         if age is not None:
             if age < 60:
@@ -50,12 +76,19 @@ def render_refresh_button() -> None:
                 age_str = f"{int(age / 3600)}h ago"
             st.caption(f"Data updated {age_str}")
 
+        render_admin_section()
+
+        if not require_admin():
+            st.caption("Data refresh locked — enter the admin password above.")
+            return
         if st.button("Refresh Data", use_container_width=True, key="refresh_data"):
             with st.spinner("Fetching latest data from FPL API…"):
                 session = get_session()
                 try:
                     loader = DataLoader()
                     loader.load(session)
+                    log_audit(session, "data_refresh", detail={"source": "sidebar"})
+                    session.commit()
                 finally:
                     session.close()
             st.rerun()

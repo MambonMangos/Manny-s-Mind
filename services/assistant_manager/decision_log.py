@@ -7,11 +7,10 @@ over time.
 from __future__ import annotations
 
 import json
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from database.models import DecisionLog, ChipState
+from database.models import ChipState, DecisionLog
 
 
 def log_recommendation(

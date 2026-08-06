@@ -12,11 +12,8 @@ overwritten. Confidence intervals quantify uncertainty from multiple sources.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -60,7 +57,7 @@ class PlayerProjection:
 
 
 def project_all_players(
-    store,  # noqa: ANN001
+    store,
     minutes_df: pd.DataFrame | None = None,
     gameweek_id: int = 0,
 ) -> list[PlayerProjection]:

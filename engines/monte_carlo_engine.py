@@ -15,7 +15,6 @@ import logging
 from dataclasses import dataclass, field
 
 import numpy as np
-import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +145,7 @@ def simulate_player(
 
 
 def simulate_squad(
-    projections: list,  # noqa: ANN001
+    projections: list,
     starting_xi: list[int],
     captain: int,
     n_simulations: int = N_SIMULATIONS,
@@ -225,7 +224,7 @@ def simulate_squad(
 
 
 def simulate_transfer_impact(
-    projections: list,  # noqa: ANN001
+    projections: list,
     current_squad: list[int],
     player_out: int,
     player_in: int,

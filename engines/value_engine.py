@@ -9,15 +9,7 @@ Consolidates:
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
-
-from services.scoring import (
-    ScoringResult,
-    add_derived_columns,
-    compute_value_score,
-)
-from utils.constants import WEIGHTS
 
 
 def compute_position_averages(player_df: pd.DataFrame) -> dict[str, float]:
@@ -30,7 +22,7 @@ def compute_position_averages(player_df: pd.DataFrame) -> dict[str, float]:
     return player_df.groupby("position")["value_score"].mean().to_dict()
 
 
-def compute_player_rating(row, avg_diff_3: float, position_avg: dict[str, float]) -> float:  # noqa: ANN001
+def compute_player_rating(row, avg_diff_3: float, position_avg: dict[str, float]) -> float:
     """Compute a 0-100 squad rating for a single player.
 
     This is the SINGLE implementation — never compute player rating inline.

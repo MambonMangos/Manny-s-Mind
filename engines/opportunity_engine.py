@@ -15,7 +15,6 @@ import logging
 from dataclasses import dataclass, field
 
 import numpy as np
-import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +71,8 @@ class UndervaluedPlayer:
 
 
 def find_undervalued_players(
-    store,  # noqa: ANN001
-    projections: list,  # noqa: ANN001
+    store,
+    projections: list,
     market_signals: list | None = None,
 ) -> list[UndervaluedPlayer]:
     """Find players whose projected points exceed their price.
@@ -114,7 +113,7 @@ def find_undervalued_players(
         ppm_1gw = proj.projected_points / price if price > 0 else 0
 
         # 3GW projection (approximate)
-        ppm_3gw = (proj.projected_points * 3) / price if price > 0 else 0
+        (proj.projected_points * 3) / price if price > 0 else 0
 
         # Check for reasons player might be undervalued
         reasons = []
@@ -189,8 +188,8 @@ def find_undervalued_players(
 
 
 def find_transfer_opportunities(
-    store,  # noqa: ANN001
-    projections: list,  # noqa: ANN001
+    store,
+    projections: list,
     current_squad: list[int] | None = None,
     budget: float = 0.0,
     transfer_count: int = 1,
@@ -358,7 +357,7 @@ def _assign_value_ranks(candidates: list[UndervaluedPlayer]) -> None:
     for c in candidates:
         by_position.setdefault(c.position, []).append(c)
 
-    for pos, players in by_position.items():
+    for players in by_position.values():
         players.sort(key=lambda p: p.points_per_million, reverse=True)
         for i, p in enumerate(players):
             p.value_rank = i + 1

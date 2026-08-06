@@ -8,13 +8,15 @@ from __future__ import annotations
 
 import pandas as pd
 
+from engines.fixture_engine import (
+    build_fixture_map,
+    get_fixture_info,
+)
+from engines.value_engine import compute_player_rating, compute_position_averages
 from services.assistant_manager.models import (
-    FixtureInfo,
     PlayerAssessment,
     SquadEvaluation,
 )
-from engines.fixture_engine import DIFFICULTY_LABELS, get_fixture_info, build_fixture_map
-from engines.value_engine import compute_player_rating, compute_position_averages
 
 
 def _classify_player(

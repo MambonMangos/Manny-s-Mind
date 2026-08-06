@@ -24,7 +24,6 @@ from sqlalchemy.orm import DeclarativeBase, relationship
 class Base(DeclarativeBase):
     """Base class for all ORM models."""
 
-    pass
 
 
 class Team(Base):
@@ -274,6 +273,26 @@ class DecisionLog(Base):
             f"<DecisionLog(gw={self.gameweek_id}, type={self.recommendation_type!r}, "
             f"accurate={self.was_accurate})>"
         )
+
+
+class AuditLog(Base):
+    """Append-only operational audit trail of mutating actions.
+
+    Records who did what (result ingestion, validation cycles, data
+    refreshes, persist-to-ledger comparisons). Never updated or deleted.
+    """
+
+    __tablename__ = "audit_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    action = Column(String, nullable=False, index=True)  # e.g. "ingest_results"
+    actor = Column(String, nullable=True)  # e.g. "team:472930"
+    resource = Column(String, nullable=True)  # e.g. "gameweek:5"
+    detail = Column(JSON, nullable=True)  # event-specific payload
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    def __repr__(self) -> str:
+        return f"<AuditLog(action={self.action!r}, actor={self.actor!r})>"
 
 
 class ChipState(Base):

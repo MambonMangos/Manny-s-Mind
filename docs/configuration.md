@@ -19,7 +19,6 @@ Loaded once at startup by `utils/env.py`. Copy `.env.example` to `.env`.
 | Variable | Default | Description |
 |---|---|---|
 | `DATABASE_URL` | `sqlite:///data/moneyball.db` | SQLAlchemy database URL |
-| `FPL_TEAM_ID` | `472930` | FPL team ID for team pages |
 | `FPL_API_BASE_URL` | `https://fantasy.premierleague.com/api` | FPL API base URL |
 | `FPL_USER_AGENT` | `MoneyballFPL/1.0` | User-Agent sent to the FPL API |
 | `FPL_API_TIMEOUT` | `30` | HTTP timeout (seconds) |
@@ -27,10 +26,15 @@ Loaded once at startup by `utils/env.py`. Copy `.env.example` to `.env`.
 | `FPL_API_BACKOFF_BASE` | `1.0` | Exponential backoff base (seconds) |
 | `FPL_API_ALLOW_INSECURE_SSL` | `false` | **Never** `true` in production; allows TLS verification to be skipped on retry |
 | `DATA_STALENESS_SECONDS` | `3600` | FPL data refresh threshold (1 hour) |
+| `ADMIN_TOKEN` | unset | Optional; when set, mutating actions (ingest/validate/refresh/persist) require this token via the sidebar admin unlock. On Streamlit Cloud use `.streamlit/secrets.toml` |
 | `LOG_LEVEL` | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL` |
 | `LOG_FILE` | unset | Optional log file path (console otherwise) |
 
 Reading `DATABASE_URL`, `FPL_*`, and `LOG_*` lives in `database/database.py`, `utils/constants.py`, and `utils/logging_setup.py` respectively.
+
+**FPL team identity is not configuration.** There is no `FPL_TEAM_ID` variable.
+The viewer's Team ID is per-session runtime state (see `docs/onboarding.md`),
+validated on the onboarding page and stored in `session_state.team_id`.
 
 ## 2. YAML Configuration (`config/`)
 

@@ -13,15 +13,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import pandas as pd
 from sqlalchemy import inspect
-from sqlalchemy.orm import Session
 
-from database.database import get_session, init_db
+from database.database import get_session
 from database.models import (
     Base,
     EngineAccuracy,
     ErrorClassification,
-    PredictionVersion,
     PlayerSnapshot,
+    PredictionVersion,
     Projection,
     ValidationMetrics,
 )
@@ -30,8 +29,9 @@ from database.models import (
 def reset_db():
     """Drop and recreate all tables for test isolation, then seed minimal data."""
     from sqlalchemy import text
+
     from database.database import engine
-    from database.models import Gameweek, Team, Player
+    from database.models import Gameweek, Player, Team
     with engine.begin() as conn:
         conn.execute(text("PRAGMA foreign_keys = OFF"))
     Base.metadata.drop_all(engine)
@@ -242,7 +242,7 @@ def test_full_validation_cycle():
         print("FULL VALIDATION CYCLE: PASSED")
         print("=" * 60)
 
-    except Exception as e:
+    except Exception:
         session.rollback()
         raise
     finally:
@@ -259,10 +259,10 @@ def test_version_comparison():
     session = get_session()
 
     try:
+        from database.crud import create_prediction_version
+        from engines.validation_engine import compare_versions, validate_version
         from features import build_feature_store
         from services.pipeline import run_projection_pipeline
-        from database.crud import create_prediction_version, insert_projections_bulk
-        from engines.validation_engine import validate_version, compare_versions
 
         player_df = create_synthetic_players(30)
         store = build_feature_store(players_df=player_df, gameweek_id=1)
@@ -324,7 +324,7 @@ def test_version_comparison():
         session.commit()
         print("\nVERSION COMPARISON: PASSED")
 
-    except Exception as e:
+    except Exception:
         session.rollback()
         raise
     finally:
@@ -338,7 +338,6 @@ def test_error_classifier_rules():
     print("=" * 60)
 
     from services.error_classifier import _classify_one, _classify_severity
-    from database.models import Player, PlayerGameweekStat
 
     # We'll test _classify_one directly with mock objects
     class MockProjection:
@@ -446,7 +445,6 @@ def test_persistence_idempotency():
     try:
         from features import build_feature_store
         from services.pipeline import run_projection_pipeline
-        from database.crud import get_prediction_version_by_tag
 
         player_df = create_synthetic_players(20)
         store = build_feature_store(players_df=player_df, gameweek_id=1)
@@ -476,7 +474,7 @@ def test_persistence_idempotency():
         session.commit()
         print("\nPERSISTENCE IDEMPOTENCY: PASSED")
 
-    except Exception as e:
+    except Exception:
         session.rollback()
         raise
     finally:
@@ -538,21 +536,21 @@ def test_evidence_thresholds_and_candidate_improvements():
     print("=" * 60)
 
     from services.learning_service import (
-        get_evidence_level,
-        get_evidence_description,
         CandidateImprovement,
         generate_weekly_report,
+        get_evidence_description,
+        get_evidence_level,
     )
 
     # Test evidence level determination
     print("\n1. Evidence Level Thresholds...")
     assert get_evidence_level(1) == "weak", f"Expected 'weak' for 1 GW, got {get_evidence_level(1)}"
-    assert get_evidence_level(2) == "needs_more_data", f"Expected 'needs_more_data' for 2 GW"
-    assert get_evidence_level(3) == "moderate", f"Expected 'moderate' for 3 GW"
-    assert get_evidence_level(5) == "moderate", f"Expected 'moderate' for 5 GW"
-    assert get_evidence_level(10) == "statistically_significant", f"Expected 'statistically_significant' for 10 GW"
+    assert get_evidence_level(2) == "needs_more_data", "Expected 'needs_more_data' for 2 GW"
+    assert get_evidence_level(3) == "moderate", "Expected 'moderate' for 3 GW"
+    assert get_evidence_level(5) == "moderate", "Expected 'moderate' for 5 GW"
+    assert get_evidence_level(10) == "statistically_significant", "Expected 'statistically_significant' for 10 GW"
     # With high consistency, 5+ GW should be 'strong'
-    assert get_evidence_level(5, 0.8) == "strong", f"Expected 'strong' for 5 GW with high consistency"
+    assert get_evidence_level(5, 0.8) == "strong", "Expected 'strong' for 5 GW with high consistency"
     print("   PASS: All evidence level thresholds correct")
 
     # Test evidence descriptions
@@ -623,7 +621,7 @@ def test_evidence_thresholds_and_candidate_improvements():
         session.commit()
         print("\nCANDIDATE IMPROVEMENTS: PASSED")
 
-    except Exception as e:
+    except Exception:
         session.rollback()
         raise
     finally:

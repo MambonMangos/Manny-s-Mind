@@ -20,12 +20,14 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from database.crud import (
-    get_error_classifications,
     get_prediction_versions,
     get_projections,
     get_validation_metrics,
 )
-from engines.validation_engine import compare_versions, validate_engine_contributions, validate_version
+from engines.validation_engine import (
+    validate_engine_contributions,
+    validate_version,
+)
 from services.error_classifier import classify_errors, get_error_summary
 
 logger = logging.getLogger(__name__)
@@ -41,8 +43,13 @@ EVIDENCE_THRESHOLDS = {
     "needs_more_data": 2,  # 2 GW: early signal, not reliable
     "moderate": 3,        # 3-4 GW: consistent pattern emerging
     "strong": 5,          # 5-9 GW: reliable pattern
-    "statistically_significant": 10,  # 10+ GW: high confidence
+    "statistically_significant": 10,  # 10+ GW: most mature evidence available
 }
+
+# NOTE: these levels are SAMPLE-SIZE maturity heuristics, not formal
+# statistical significance. No hypothesis test, p-value, or confidence
+# interval is computed; the labels describe how much validation data backs
+# a claim, not a rejection of a null hypothesis.
 
 
 def get_evidence_level(n_gameweeks: int, consistency_score: float = 0.0) -> str:
@@ -84,7 +91,7 @@ def get_evidence_description(level: str) -> str:
         "needs_more_data": "Early signal from 2 gameweeks. Not yet reliable for decisions.",
         "moderate": "Consistent pattern across 3-4 gameweeks. Worth monitoring, but not conclusive.",
         "strong": "Reliable pattern across 5+ gameweeks. Strong candidate for investigation.",
-        "statistically_significant": "High-confidence pattern across 10+ gameweeks. Ready for action.",
+        "statistically_significant": "Validated across 10+ gameweeks — the most extensive evidence available. Ready for action.",
     }
     return descriptions.get(level, "Unknown evidence level")
 
@@ -236,7 +243,7 @@ def generate_weekly_report(
     report = WeeklyReport(
         gameweek_id=gameweek_id,
         status="ok",
-        computed_at=datetime.utcnow().isoformat(),
+        computed_at=datetime.utcnow().isoformat(),  # noqa: DTZ003 - naive UTC matches DB convention
     )
 
     # Get validation metrics for all versions
@@ -326,8 +333,8 @@ def get_model_health(session: Session) -> dict:
 
     return {
         "status": "ok",
-        "n_gameweeks": len(set(m["gameweek_id"] for m in all_metrics)),
-        "n_versions": len(set(m["version_tag"] for m in all_metrics)),
+        "n_gameweeks": len({m["gameweek_id"] for m in all_metrics}),
+        "n_versions": len({m["version_tag"] for m in all_metrics}),
         "avg_mae_recent": round(avg_mae, 3),
         "avg_bias_recent": round(avg_bias, 3),
         "bias_direction": bias_direction,

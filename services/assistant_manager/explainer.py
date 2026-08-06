@@ -11,7 +11,6 @@ from services.assistant_manager.models import (
     PlayerAssessment,
     SquadEvaluation,
     TransferPlan,
-    TransferRecommendation,
 )
 
 

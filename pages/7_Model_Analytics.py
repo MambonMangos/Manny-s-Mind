@@ -13,27 +13,29 @@ import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 
-from components.theme import inject_theme, page_header, section_label, divider
+from components.sidebar import render_admin_section
+from components.theme import inject_theme, page_header, section_label
 from database.crud import (
-    get_error_classifications,
     get_engine_accuracy,
     get_prediction_versions,
     get_projections,
     get_validation_metrics,
 )
 from database.database import get_session
+from services.audit import get_recent_audit_log, log_audit
 from services.error_classifier import get_error_summary
 from services.learning_service import (
     generate_weekly_report,
-    get_model_health,
-    get_evidence_level,
     get_evidence_description,
+    get_evidence_level,
+    get_model_health,
 )
 from services.result_ingestion_service import (
     detect_finished_gameweeks,
     get_ingestion_status,
     ingest_gameweek_results,
 )
+from utils.access import require_admin
 
 st.set_page_config(page_title="Model Analytics", layout="wide")
 inject_theme()
@@ -167,20 +169,35 @@ with tab_workflow:
         if pending:
             st.markdown("---")
             st.markdown("**Ready to Ingest**")
-            for gw_id in pending:
-                if st.button(f"Ingest GW{gw_id} Results", key=f"ingest_{gw_id}"):
-                    with st.spinner(f"Ingesting GW{gw_id} results..."):
-                        report = ingest_gameweek_results(session, gw_id)
-                        session.commit()
-                    if report.status == "ok":
-                        st.success(
-                            f"GW{gw_id}: {report.n_actuals} actuals, "
-                            f"{report.n_projections_updated} projections updated, "
-                            f"{report.duration_ms:.0f}ms"
-                        )
-                        st.rerun()
-                    else:
-                        st.error(f"Failed: {report.error_message}")
+            if not require_admin():
+                st.warning(
+                    "Ingestion is an admin action. Enter the admin password "
+                    "in the sidebar to unlock."
+                )
+            else:
+                for gw_id in pending:
+                    if st.button(f"Ingest GW{gw_id} Results", key=f"ingest_{gw_id}"):
+                        with st.spinner(f"Ingesting GW{gw_id} results..."):
+                            report = ingest_gameweek_results(session, gw_id)
+                            log_audit(
+                                session,
+                                "ingest_results",
+                                resource=f"gameweek:{gw_id}",
+                                detail={
+                                    "status": report.status,
+                                    "n_actuals": report.n_actuals,
+                                },
+                            )
+                            session.commit()
+                        if report.status == "ok":
+                            st.success(
+                                f"GW{gw_id}: {report.n_actuals} actuals, "
+                                f"{report.n_projections_updated} projections updated, "
+                                f"{report.duration_ms:.0f}ms"
+                            )
+                            st.rerun()
+                        else:
+                            st.error(f"Failed: {report.error_message}")
         elif status:
             st.success("All finished gameweeks have been ingested.")
     finally:
@@ -194,26 +211,51 @@ with tab_workflow:
     try:
         versions = get_prediction_versions(session2)
         if versions:
-            gw_options = sorted(set(
+            gw_options = sorted({
                 p.gameweek_id for pv in versions
                 for p in get_projections(session2, pv.id)
                 if p.actual_points is not None
-            ))
+            })
 
             if gw_options:
-                selected_gw = st.selectbox("Gameweek to validate", gw_options)
-                if st.button("Run Validation Cycle"):
-                    from services.learning_service import run_validation_cycle
-                    with st.spinner("Running validation..."):
-                        result = run_validation_cycle(session2, selected_gw)
-                        session2.commit()
-                    st.json(result)
+                if require_admin():
+                    selected_gw = st.selectbox("Gameweek to validate", gw_options)
+                    if st.button("Run Validation Cycle"):
+                        from services.learning_service import run_validation_cycle
+                        with st.spinner("Running validation..."):
+                            result = run_validation_cycle(session2, selected_gw)
+                            log_audit(
+                                session2,
+                                "run_validation_cycle",
+                                resource=f"gameweek:{selected_gw}",
+                            )
+                            session2.commit()
+                        st.json(result)
+                else:
+                    st.warning(
+                        "Validation is an admin action. Enter the admin password "
+                        "in the sidebar to unlock."
+                    )
             else:
                 st.info("No gameweeks with actuals available for validation.")
         else:
             st.info("No prediction versions found.")
     finally:
         session2.close()
+
+    with st.expander("Recent Activity (audit log)", expanded=False):
+        session3 = get_session()
+        try:
+            events = get_recent_audit_log(session3, limit=20)
+            if not events:
+                st.caption("No audit events recorded yet.")
+            for event in events:
+                ts = event.created_at.strftime("%Y-%m-%d %H:%M") if event.created_at else "?"
+                st.markdown(
+                    f"`{ts}` **{event.action}** — {event.actor} · {event.resource or ''}"
+                )
+        finally:
+            session3.close()
 
 
 # ------------------------------------------------------------------
@@ -249,12 +291,12 @@ with tab_scatter:
                 fig.add_trace(go.Scatter(
                     x=predicted, y=actual,
                     mode="markers",
-                    marker=dict(
-                        size=8, opacity=0.6,
-                        color=np.abs(np.array(predicted) - np.array(actual)),
-                        colorscale="RdYlGn_r",
-                        colorbar=dict(title="|Error|"),
-                    ),
+                    marker={
+                        "size": 8, "opacity": 0.6,
+                        "color": np.abs(np.array(predicted) - np.array(actual)),
+                        "colorscale": "RdYlGn_r",
+                        "colorbar": {"title": "|Error|"},
+                    },
                     text=[f"Player {p.player_id}" for p in with_actuals],
                     hovertemplate="Predicted: %{x:.1f}<br>Actual: %{y}<br>%{text}<extra></extra>",
                 ))
@@ -264,7 +306,7 @@ with tab_scatter:
                 fig.add_trace(go.Scatter(
                     x=[0, max_val], y=[0, max_val],
                     mode="lines",
-                    line=dict(color="gray", dash="dash", width=1),
+                    line={"color": "gray", "dash": "dash", "width": 1},
                     name="Perfect Prediction",
                 ))
 
@@ -274,7 +316,7 @@ with tab_scatter:
                 fig.add_trace(go.Scatter(
                     x=[0, max_val], y=[mae, max_val + mae],
                     mode="lines",
-                    line=dict(color="orange", dash="dot", width=1),
+                    line={"color": "orange", "dash": "dot", "width": 1},
                     name=f"MAE = {mae:.2f}",
                 ))
 
@@ -356,7 +398,7 @@ with tab_calibration:
                     x=widths * 100, y=[c * 100 for c in actual_coverage],
                     mode="lines+markers",
                     name="Actual Coverage",
-                    line=dict(color="#10b981", width=2),
+                    line={"color": "#10b981", "width": 2},
                 ))
 
                 # Perfect calibration line
@@ -364,7 +406,7 @@ with tab_calibration:
                     x=widths * 100, y=widths * 100,
                     mode="lines",
                     name="Perfect Calibration",
-                    line=dict(color="gray", dash="dash", width=1),
+                    line={"color": "gray", "dash": "dash", "width": 1},
                 ))
 
                 fig.update_layout(
@@ -411,7 +453,7 @@ with tab_calibration:
                             y=[t["mae"] for t in trend_data],
                             mode="lines+markers",
                             name="MAE",
-                            line=dict(color="#10b981", width=2),
+                            line={"color": "#10b981", "width": 2},
                         ))
                         fig_trend.update_layout(
                             xaxis_title="Gameweek",
@@ -596,7 +638,7 @@ with tab_engines:
                     st.caption("*Track how each engine's accuracy changes over time*")
 
                     fig = go.Figure()
-                    for eng_name in engines_by_gw[list(engines_by_gw.keys())[0]]:
+                    for eng_name in engines_by_gw[next(iter(engines_by_gw.keys()))]:
                         gws = sorted(engines_by_gw.keys())
                         maes = [engines_by_gw[gw].get(eng_name, {}).get("mae") for gw in gws]
                         fig.add_trace(go.Scatter(
@@ -691,11 +733,11 @@ with tab_report:
             st.info("No prediction versions found.")
         else:
             version_options = {pv.version_tag: pv.id for pv in versions}
-            gw_options = sorted(set(
+            gw_options = sorted({
                 p.gameweek_id for pv in versions
                 for p in get_projections(session, pv.id)
                 if p.actual_points is not None
-            ))
+            })
 
             if gw_options:
                 selected_gw = st.selectbox("Select Gameweek", gw_options, key="report_gw")
@@ -804,6 +846,7 @@ with tab_report:
 # ------------------------------------------------------------------
 
 with st.sidebar:
+    render_admin_section()
     st.markdown("---")
     st.markdown("**Model Health**")
 

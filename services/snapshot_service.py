@@ -17,17 +17,15 @@ Usage::
 
 from __future__ import annotations
 
-import json
 import logging
-from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from database.crud import (
     create_prediction_version,
     get_prediction_version_by_tag,
-    insert_projections_bulk,
     insert_player_snapshots_bulk,
+    insert_projections_bulk,
 )
 from utils.config import get_config_hash
 
@@ -36,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 def persist_pipeline_result(
     session: Session,
-    pipeline_result,  # noqa: ANN001 — PipelineResult
+    pipeline_result,
     model_name: str = "projection_v2",
     notes: str | None = None,
 ) -> int:
@@ -108,7 +106,7 @@ def persist_predictions_only(
     version_tag: str,
     model_name: str,
     gameweek_id: int,
-    projections: list,  # noqa: ANN001 — list[PlayerProjection]
+    projections: list,
     config_hash: str | None = None,
     notes: str | None = None,
 ) -> int:
@@ -174,7 +172,7 @@ def mark_actuals(
 
 def _persist_player_snapshots(
     session: Session,
-    pipeline_result,  # noqa: ANN001
+    pipeline_result,
 ) -> None:
     """Create PlayerSnapshot rows from the pipeline's FeatureStore data.
 

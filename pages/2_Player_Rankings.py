@@ -10,25 +10,22 @@ from components.sidebar import render_refresh_button, render_sidebar_filters
 from components.tables import render_player_table
 from components.theme import (
     COLOR_MARKET_BUY,
-    COLOR_MARKET_SELL,
-    COLOR_MARKET_RISER,
     COLOR_MARKET_FALLER,
-    COLOR_ACCENT_INDIGO,
+    COLOR_MARKET_RISER,
+    COLOR_MARKET_SELL,
+    divider,
     inject_theme,
     page_header,
     section_label,
-    section_title,
-    divider,
-    style_chart,
 )
-from database.database import get_session, init_db
-from services.player_service import filter_players, get_scored_players
+from database.database import get_session
 from engines.market_engine import (
+    get_price_fallers,
+    get_price_risers,
     get_top_transfers_in,
     get_top_transfers_out,
-    get_price_risers,
-    get_price_fallers,
 )
+from services.player_service import filter_players, get_scored_players
 from utils.helpers import ensure_data_loaded
 
 st.set_page_config(page_title="Player Rankings", layout="wide")
@@ -94,9 +91,9 @@ with ma_left:
         ))
         fig_in.update_layout(
             height=max(250, tf_in_count * 36 + 60),
-            margin=dict(l=10, r=60, t=10, b=10),
-            xaxis=dict(title="Transfers In", gridcolor="#27272a"),
-            yaxis=dict(gridcolor="#27272a"),
+            margin={"l": 10, "r": 60, "t": 10, "b": 10},
+            xaxis={"title": "Transfers In", "gridcolor": "#27272a"},
+            yaxis={"gridcolor": "#27272a"},
             plot_bgcolor="#18181b", paper_bgcolor="#18181b",
         )
         st.plotly_chart(fig_in, use_container_width=True)
@@ -131,9 +128,9 @@ with ma_right:
         ))
         fig_out.update_layout(
             height=max(250, tf_out_count * 36 + 60),
-            margin=dict(l=10, r=60, t=10, b=10),
-            xaxis=dict(title="Transfers Out", gridcolor="#27272a"),
-            yaxis=dict(gridcolor="#27272a"),
+            margin={"l": 10, "r": 60, "t": 10, "b": 10},
+            xaxis={"title": "Transfers Out", "gridcolor": "#27272a"},
+            yaxis={"gridcolor": "#27272a"},
             plot_bgcolor="#18181b", paper_bgcolor="#18181b",
         )
         st.plotly_chart(fig_out, use_container_width=True)
@@ -170,9 +167,9 @@ with mm_left:
         ))
         fig_rise.update_layout(
             height=max(250, len(risers) * 36 + 60),
-            margin=dict(l=10, r=60, t=10, b=10),
-            xaxis=dict(title="Price Change (£m)", gridcolor="#27272a"),
-            yaxis=dict(gridcolor="#27272a"),
+            margin={"l": 10, "r": 60, "t": 10, "b": 10},
+            xaxis={"title": "Price Change (£m)", "gridcolor": "#27272a"},
+            yaxis={"gridcolor": "#27272a"},
             plot_bgcolor="#18181b", paper_bgcolor="#18181b",
         )
         st.plotly_chart(fig_rise, use_container_width=True)
@@ -198,9 +195,9 @@ with mm_right:
         ))
         fig_fall.update_layout(
             height=max(250, len(fallers) * 36 + 60),
-            margin=dict(l=10, r=60, t=10, b=10),
-            xaxis=dict(title="Price Change (£m)", gridcolor="#27272a"),
-            yaxis=dict(gridcolor="#27272a"),
+            margin={"l": 10, "r": 60, "t": 10, "b": 10},
+            xaxis={"title": "Price Change (£m)", "gridcolor": "#27272a"},
+            yaxis={"gridcolor": "#27272a"},
             plot_bgcolor="#18181b", paper_bgcolor="#18181b",
         )
         st.plotly_chart(fig_fall, use_container_width=True)

@@ -2,28 +2,26 @@
 
 from __future__ import annotations
 
-import json
 import logging
+from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Sequence
 
 import pandas as pd
-from sqlalchemy import func, inspect
 from sqlalchemy.orm import Session
 
 from database.models import (
+    DecisionLog,
     EngineAccuracy,
     ErrorClassification,
-    Player,
-    Team,
+    ExperimentRun,
     Gameweek,
+    Player,
+    PlayerSnapshot,
     PredictionVersion,
     Projection,
-    PlayerSnapshot,
-    ExperimentRun,
-    DecisionLog,
-    ValidationMetrics,
     RecommendationOutcome,
+    Team,
+    ValidationMetrics,
 )
 from utils.constants import POSITION_MAP
 

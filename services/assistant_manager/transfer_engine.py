@@ -9,24 +9,64 @@ from __future__ import annotations
 
 import pandas as pd
 
+from engines.market_engine import classify_demand
+from engines.prediction_engine import (
+    classify_risk,
+    compute_confidence,
+    project_minutes,
+    project_points_gain,
+)
 from services.assistant_manager.models import (
-    FixtureInfo,
     PlayerAssessment,
     SquadEvaluation,
     TransferPlan,
     TransferRecommendation,
 )
-from engines.fixture_engine import compute_fixture_score, DIFFICULTY_LABELS
-from engines.prediction_engine import (
-    project_minutes,
-    project_points_gain,
-    classify_risk,
-    compute_confidence,
-)
-from engines.market_engine import classify_demand
 
 # Position limits: GKP(1), DEF(2), MID(3), FWD(4) → max in squad
 POSITION_LIMITS = {"GKP": 2, "DEF": 5, "MID": 5, "FWD": 3}
+
+
+def _build_reasoning(
+    out_a: PlayerAssessment,
+    in_name: str,
+    in_team: str,
+    expected_gain: float,
+    fixture_improvement: float,
+    risk_level: str,
+    price_diff: float,
+    in_form: float,
+    in_xgi: float,
+    out_weaknesses: list[str],
+    in_opportunities: list[str],
+) -> str:
+    """Build a human-readable explanation for a transfer recommendation."""
+    parts = [
+        (
+            f"{in_name} ({in_team}) projects {expected_gain:+.2f} pts better than "
+            f"{out_a.web_name} this gameweek."
+        )
+    ]
+    if fixture_improvement > 0:
+        parts.append(
+            f"Fixtures improve by {fixture_improvement:+.1f} over the next 3 GWs."
+        )
+    elif fixture_improvement < 0:
+        parts.append(
+            f"Fixtures are {abs(fixture_improvement):.1f} points harder over the next 3 GWs."
+        )
+    if in_form > 0:
+        parts.append(f"Strong recent form ({in_form:.2f}).")
+    if in_xgi > 0:
+        parts.append(f"Attacking threat of {in_xgi:.2f} xGI/90.")
+    if price_diff != 0:
+        parts.append(f"Price difference of £{price_diff:+.1f}m.")
+    if out_weaknesses:
+        parts.append(f"{out_a.web_name} concerns: {', '.join(out_weaknesses[:2])}.")
+    if in_opportunities:
+        parts.append("Opportunity: " + "; ".join(in_opportunities[:2]) + ".")
+    parts.append(f"Risk level: {risk_level}.")
+    return " ".join(parts)
 
 
 def generate_transfer_recommendations(
@@ -50,12 +90,11 @@ def generate_transfer_recommendations(
         return TransferPlan(action="hold", reasoning="No squad data available.")
 
     squad_ids = {p.player_id for p in squad_eval.players}
-    squad_positions = {p.position for p in squad_eval.players}
+    {p.position for p in squad_eval.players}
 
     # Position average value scores for relative comparison
-    pos_avg: dict[str, float] = {}
     if "position" in player_df.columns and "value_score" in player_df.columns:
-        pos_avg = player_df.groupby("position")["value_score"].mean().to_dict()
+        player_df.groupby("position")["value_score"].mean().to_dict()
 
     recommendations: list[TransferRecommendation] = []
 
@@ -70,8 +109,8 @@ def generate_transfer_recommendations(
             continue
 
         # Get fixtures for candidate teams
-        out_fixtures = fixture_map.get(
-            int(squad_df_id := out_a.player_id), []
+        fixture_map.get(
+            int(_squad_df_id := out_a.player_id), []
         )
         out_avg_d3 = out_a.avg_difficulty_3gw
 
@@ -108,6 +147,9 @@ def generate_transfer_recommendations(
             in_web_name = str(in_row.get("web_name", "?") or "?")
 
             # Get opportunity flags for the candidate
+            transfers_in = int(in_row.get("transfers_in_event", 0) or 0)
+            transfers_out = int(in_row.get("transfers_out_event", 0) or 0)
+            selected = float(in_row.get("selected_by_percent", 0) or 0)
             in_opps = classify_demand(transfers_in, transfers_out, selected)
 
             reasoning = _build_reasoning(

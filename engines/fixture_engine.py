@@ -7,8 +7,11 @@ defined in 3 files).
 
 from __future__ import annotations
 
-from services.fixture_service import Fixture
+import numpy as np
+import pandas as pd
+
 from services.assistant_manager.models import FixtureInfo
+from services.fixture_service import Fixture
 
 DIFFICULTY_LABELS: dict[int, str] = {
     1: "Very Easy",
@@ -53,8 +56,8 @@ def build_fixture_map(fixtures: list[dict] | list[Fixture]) -> dict[int, list[di
             "difficulty": diff_a,
         })
 
-    for tid in fixture_map:
-        fixture_map[tid].sort(key=lambda x: x["gameweek"])
+    for team_fixtures in fixture_map.values():
+        team_fixtures.sort(key=lambda x: x["gameweek"])
 
     return fixture_map
 
@@ -69,7 +72,7 @@ def compute_fixture_score(difficulty: int) -> float:
 
 
 def get_fixture_info(
-    row,  # noqa: ANN001
+    row,
     fixture_map: dict[int, list[dict]],
     team_name_map: dict[int, str],
     window_size: int = 6,
@@ -97,7 +100,7 @@ def get_fixture_info(
 
 
 def build_fixture_window(
-    players,  # noqa: ANN001
+    players,
     fixture_map: dict[int, list[dict]],
     team_name_map: dict[int, str],
     window_size: int,
@@ -133,7 +136,7 @@ def build_fixture_window(
 
 
 def detect_fixture_swings(
-    players,  # noqa: ANN001
+    players,
     fixture_map: dict[int, list[dict]],
     team_name_map: dict[int, str],
 ) -> list[str]:
@@ -165,8 +168,8 @@ def detect_fixture_swings(
 
 
 def compute_player_fixture_scores(
-    comp_df,  # noqa: ANN001
-    fixture_df,  # noqa: ANN001
+    comp_df,
+    fixture_df,
 ) -> list[dict]:
     """Compute average fixture score for each player in a comparison DataFrame."""
     player_fixture_scores = []
@@ -183,13 +186,12 @@ def compute_player_fixture_scores(
 
 
 def build_fixture_heatmap_data(
-    fixture_df,  # noqa: ANN001
-) -> tuple:  # noqa: ANN001
+    fixture_df,
+) -> tuple:
     """Build pivot tables for fixture difficulty heatmap.
 
     Returns (pivot_diff, pivot_opp, text_labels).
     """
-    import pandas as pd
 
     pivot_diff = fixture_df.pivot_table(
         index="gameweek",
@@ -215,11 +217,10 @@ def build_fixture_heatmap_data(
 
 
 def build_fixture_summary(
-    comp_df,  # noqa: ANN001
-    fixture_df,  # noqa: ANN001
+    comp_df,
+    fixture_df,
 ) -> list[dict]:
     """Build per-player fixture summary rows."""
-    import pandas as pd
 
     summary_rows = []
     for _, row in comp_df.iterrows():
@@ -248,7 +249,7 @@ def build_fixture_summary(
 # ------------------------------------------------------------------
 
 def compute_fixture_windows(
-    store,  # noqa: ANN001
+    store,
 ) -> pd.DataFrame:
     """Compute multi-GW fixture window features for all players.
 
@@ -260,9 +261,9 @@ def compute_fixture_windows(
     from utils.config import load_config
 
     cfg = load_config("fixtures")
-    home_advantage = cfg.get("home_advantage", 0.3)
-    dgw_multiplier = cfg.get("dgw_multiplier", 1.8)
-    swing_threshold = cfg.get("swing_threshold", 1.0)
+    cfg.get("home_advantage", 0.3)
+    cfg.get("dgw_multiplier", 1.8)
+    cfg.get("swing_threshold", 1.0)
 
     df = store.df
     fixture_map = store.fixture_map

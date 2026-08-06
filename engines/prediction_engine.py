@@ -30,7 +30,7 @@ def project_minutes(row: pd.Series) -> float:
 
 
 def project_points_gain(
-    out_assessment,  # noqa: ANN001
+    out_assessment,
     in_row: pd.Series,
     in_avg_diff_3: float,
 ) -> float:

@@ -12,6 +12,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import logging
+
 import numpy as np
 import pandas as pd
 
@@ -124,8 +125,8 @@ def test_canonical_values_match_computation():
 
 def test_regression_engine_reads_canonical():
     """H-07: Regression Engine must read finishing/creative ratio from row."""
-    from features import build_feature_store
     from engines.regression_engine import _analyze_player_regression
+    from features import build_feature_store
 
     df = synthetic_players(10)
     store = build_feature_store(players_df=df, gameweek_id=1)
@@ -150,8 +151,8 @@ def test_regression_engine_reads_canonical():
 
 def test_market_engine_reads_canonical():
     """H-07: Market Intelligence Engine must read canonical market features."""
-    from features import build_feature_store
     from engines.market_intelligence_engine import _analyze_player_market
+    from features import build_feature_store
 
     df = synthetic_players(10)
     store = build_feature_store(players_df=df, gameweek_id=1)
@@ -229,9 +230,9 @@ def test_generate_candidate_improvements_empty():
 
 def test_generate_weekly_report_empty():
     """H-09: generate_weekly_report must not crash on empty data."""
-    import sqlite3
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
+
     from database.models import Base
 
     engine = create_engine("sqlite://", echo=False)
@@ -254,10 +255,11 @@ def test_generate_weekly_report_empty():
 
 def test_snapshot_skips_missing_player_id():
     """H-18: _persist_player_snapshots must skip when store.df has no player_id."""
-    from services.snapshot_service import _persist_player_snapshots
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
+
     from database.models import Base
+    from services.snapshot_service import _persist_player_snapshots
 
     engine = create_engine("sqlite://", echo=False)
     Base.metadata.create_all(engine)
@@ -280,11 +282,11 @@ def test_snapshot_skips_missing_player_id():
 
 def test_snapshot_skips_zero_player_id():
     """H-18: _persist_player_snapshots must skip rows with player_id=0."""
-    from services.snapshot_service import _persist_player_snapshots
-    from database.crud import insert_player_snapshots_bulk
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
+
     from database.models import Base, PlayerSnapshot
+    from services.snapshot_service import _persist_player_snapshots
 
     engine = create_engine("sqlite://", echo=False)
     Base.metadata.create_all(engine)
@@ -366,7 +368,7 @@ if __name__ == "__main__":
             fn()
             print("RESULT: PASS")
             passed += 1
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - test harness must record the failure
             print(f"RESULT: FAIL — {e}")
             import traceback
             traceback.print_exc()

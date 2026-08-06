@@ -12,7 +12,7 @@ Reads from: FeatureStore, Projection Engine, Opportunity Engine
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -81,8 +81,8 @@ class SquadRecommendation:
 
 
 def optimize_squad(
-    store,  # noqa: ANN001
-    projections: list,  # noqa: ANN001
+    store,
+    projections: list,
     current_squad: list[int] | None = None,
     budget: float = BUDGET,
     n_iterations: int = 1000,
@@ -142,8 +142,8 @@ def optimize_squad(
 
 
 def get_squad_recommendation(
-    store,  # noqa: ANN001
-    projections: list,  # noqa: ANN001
+    store,
+    projections: list,
     current_squad: list[int] | None = None,
     budget_remaining: float = 0.0,
 ) -> SquadRecommendation:

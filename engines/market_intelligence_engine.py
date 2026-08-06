@@ -55,7 +55,7 @@ class MarketSignal:
 
 
 def compute_market_signals(
-    store,  # noqa: ANN001
+    store,
 ) -> list[MarketSignal]:
     """Analyze market dynamics for all players.
 
@@ -63,7 +63,7 @@ def compute_market_signals(
     """
     cfg = load_config("features")
     market_cfg = cfg.get("market", {})
-    velocity_window = market_cfg.get("velocity_window", 3)
+    market_cfg.get("velocity_window", 3)
 
     df = store.df
     signals = []

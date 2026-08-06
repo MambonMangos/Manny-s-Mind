@@ -25,8 +25,6 @@ import logging
 import time
 from dataclasses import dataclass, field
 
-import pandas as pd
-
 from features import FeatureStore
 from utils.config import get_config_hash
 
@@ -90,7 +88,7 @@ def run_projection_pipeline(
     current_squad: list[int] | None = None,
     budget_remaining: float = 0.0,
     odds_data: list | None = None,
-    session=None,  # noqa: ANN001 — SQLAlchemy Session, optional
+    session=None,
     persist: bool = False,
 ) -> PipelineResult:
     """Run the complete V2 projection pipeline.
@@ -129,20 +127,25 @@ def run_projection_pipeline(
 
     # 2. Projection Engine
     logger.info("Step 2/7: Projection Engine")
-    from engines.projection_engine import project_all_players, compute_projection_version_tag
+    from engines.projection_engine import (
+        compute_projection_version_tag,
+        project_all_players,
+    )
     projections = project_all_players(store, minutes_df, gameweek_id)
 
     # 3. Regression Engine
     logger.info("Step 3/7: Regression Engine")
-    from engines.regression_engine import compute_regression_signals, apply_regression_adjustments
+    from engines.regression_engine import (
+        apply_regression_adjustments,
+        compute_regression_signals,
+    )
     regression_signals = compute_regression_signals(store)
     projections = apply_regression_adjustments(projections, regression_signals)
 
     # 4. Bookmaker Engine (if odds available)
     logger.info("Step 4/7: Bookmaker Engine")
-    from engines.bookmaker_engine import project_from_odds, apply_bookmaker_adjustments
+    from engines.bookmaker_engine import apply_bookmaker_adjustments, project_from_odds
     if odds_data:
-        from engines.bookmaker_engine import FixtureOdds
         bm_projections = project_from_odds(store, projections, odds_data)
         projections = apply_bookmaker_adjustments(projections, bm_projections)
     else:
@@ -160,7 +163,10 @@ def run_projection_pipeline(
 
     # 7. Opportunity Engine
     logger.info("Step 7/7: Opportunity Engine")
-    from engines.opportunity_engine import find_undervalued_players, find_transfer_opportunities
+    from engines.opportunity_engine import (
+        find_transfer_opportunities,
+        find_undervalued_players,
+    )
     undervalued = find_undervalued_players(store, projections, market_signals)
 
     opportunities = []
@@ -214,7 +220,7 @@ def run_projection_pipeline(
             result.version_id = version_id
             session.commit()
             logger.info("Pipeline results persisted: version_id=%d", version_id)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - persistence failure is non-fatal for the pipeline
             logger.error("Failed to persist pipeline results: %s", e)
             session.rollback()
     elif persist and session is None:

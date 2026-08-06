@@ -19,7 +19,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 # ── Vertical positions (own goal = 0, opponent goal = 1) ────────────────────
 
 Y_GK: float = 0.06
@@ -159,7 +158,7 @@ def get_or_build_formation(defs: int, mids: int, fwds: int) -> list[FormationRow
     return rows
 
 
-def get_positions(rows: list[FormationRow], player_df) -> list[dict]:  # noqa: ANN001
+def get_positions(rows: list[FormationRow], player_df) -> list[dict]:
     """Map players to their tactical coordinates.
 
     Takes a list of FormationRow and a DataFrame of the starting XI.
@@ -169,7 +168,6 @@ def get_positions(rows: list[FormationRow], player_df) -> list[dict]:  # noqa: A
     Players are assigned to rows in order (GK first, then DEF left to
     right, MID left to right, FWD left to right).
     """
-    import pandas as _pd
 
     result: list[dict] = []
 

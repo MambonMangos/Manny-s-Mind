@@ -14,9 +14,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from utils.config import load_config
@@ -58,8 +56,8 @@ class ConfidenceResult:
 
 
 def compute_confidence_batch(
-    projections: list,  # noqa: ANN001
-    store,  # noqa: ANN001
+    projections: list,
+    store,
     minutes_df: pd.DataFrame | None = None,
 ) -> list[ConfidenceResult]:
     """Compute confidence for a batch of projections.
@@ -92,8 +90,8 @@ def compute_confidence_batch(
 
 
 def _compute_single_confidence(
-    proj,  # noqa: ANN001
-    store,  # noqa: ANN001
+    proj,
+    store,
     minutes_df: pd.DataFrame | None,
     thresholds: dict,
 ) -> ConfidenceResult:
@@ -259,7 +257,7 @@ def _regression_uncertainty(row: pd.Series) -> float:
     if xg == 0 or minutes == 0:
         return 0.3  # baseline
 
-    games = max(1, minutes / 90)
+    max(1, minutes / 90)
     finishing_ratio = goals / xg
 
     # Large deviation from 1.0 = high regression uncertainty

@@ -79,6 +79,7 @@ alembic upgrade head                      # after model changes
 ## 8. Getting Help
 
 - Architecture overview: `docs/architecture.md`
+- Leadership, roles & decision-making: `docs/engineering_workflow.md`
 - Configuration reference: `docs/configuration.md`
 - Deployment: `docs/deployment.md`
 - Database/migrations: `docs/database.md`

@@ -6,14 +6,10 @@ swings), and recommends when to play each chip.
 
 from __future__ import annotations
 
-import pandas as pd
-
 from services.assistant_manager.models import (
     ChipRecommendation,
-    PlayerAssessment,
     SquadEvaluation,
 )
-from engines.fixture_engine import DIFFICULTY_LABELS
 
 
 def _check_double_gameweeks(
@@ -35,9 +31,8 @@ def _check_blank_gameweeks(
     """Identify gameweeks where a team plays zero times (BGW)."""
     team_gws: set[int] = set()
     for f in fixtures:
-        if f["event"] in gameweeks:
-            if f["team_h"] == team_id or f["team_a"] == team_id:
-                team_gws.add(f["event"])
+        if f["event"] in gameweeks and (f["team_h"] == team_id or f["team_a"] == team_id):
+            team_gws.add(f["event"])
 
     return [gw for gw in gameweeks if gw not in team_gws]
 

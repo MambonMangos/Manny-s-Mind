@@ -2,7 +2,7 @@
 
 A data-driven Fantasy Premier League analytics platform built with Streamlit, SQLAlchemy, and Plotly.
 
-> **Status:** Phase 1 (deployment foundation) in progress. Prediction and validation behaviour are frozen — no weight tuning or model changes until after GW1.
+> **Status:** Deployed and running locally against live FPL data; public launch is prepared (CI, onboarding, security hardening) but the app is **not yet publicly hosted**. Prediction and validation behaviour are frozen — no weight tuning or model changes until after GW1.
 
 ## Features
 
@@ -70,7 +70,7 @@ config/*.yaml  (versioned, active.yaml selects the active version)
 Safe Defaults  (utils/constants.py)
 ```
 
-- **`.env`** — environment-specific values (database URL, team ID, API settings, logging). See `.env.example`.
+- **`.env`** — environment-specific values (database URL, API settings, logging). The visitor's FPL Team ID is **not** configuration — it is entered per session on the onboarding page (see `docs/onboarding.md`). See `.env.example`.
 - **`config/`** — versioned YAML configs (weights, fixtures, minutes, prediction, bookmaker, features). The active version of each category is selected in `config/active.yaml`. Switch versions by editing that file — never overwrite old versions.
 
 See `docs/configuration.md` for the full reference.
@@ -111,6 +111,7 @@ See the `docs/` directory for the full documentation package:
 |---|---|
 | `docs/architecture.md` | System architecture and data flow |
 | `docs/stakeholders.md` | Workstream owners and routing decisions |
+| `docs/engineering_workflow.md` | Leadership, roles, AI-assisted workflow, review & approval process |
 | `docs/development.md` | Developer setup and contribution guide |
 | `docs/deployment.md` | Production deployment guide |
 | `docs/configuration.md` | Configuration reference |

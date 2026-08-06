@@ -8,30 +8,25 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from components.sidebar import render_refresh_button
 from components.theme import (
-    COLOR_ACCENT_INDIGO,
-    COLOR_ACCENT_CYAN,
+    divider,
     inject_theme,
     page_header,
     section_label,
-    section_title,
-    divider,
-    style_chart,
 )
-from components.sidebar import render_refresh_button
 from database.crud import get_teams_dataframe
 from database.database import get_session
-from services.player_service import get_scored_players
+from engines.fixture_engine import (
+    build_fixture_heatmap_data,
+    build_fixture_summary,
+    compute_player_fixture_scores,
+)
 from services.fixture_service import (
     build_fixture_comparison,
     fetch_fixtures,
-    get_team_fixtures_df,
 )
-from engines.fixture_engine import (
-    compute_player_fixture_scores,
-    build_fixture_heatmap_data,
-    build_fixture_summary,
-)
+from services.player_service import get_scored_players
 from utils.helpers import ensure_data_loaded
 
 # ---------------------------------------------------------------------------
@@ -214,20 +209,20 @@ for i, (_, row) in enumerate(comp_df.iterrows()):
         theta=radar_labels + [radar_labels[0]],
         fill="toself",
         name=f"{row['web_name']} ({row['team_short']})",
-        line=dict(color=_radar_colors[i % len(_radar_colors)], width=2),
+        line={"color": _radar_colors[i % len(_radar_colors)], "width": 2},
         fillcolor=_radar_colors[i % len(_radar_colors)],
         opacity=0.5,
     ))
 
 fig_radar.update_layout(
-    polar=dict(
-        radialaxis=dict(visible=True, range=[0, 100], gridcolor="#27272a", tickfont=dict(color="#71717a")),
-        angularaxis=dict(gridcolor="#27272a", tickfont=dict(color="#a1a1aa")),
-        bgcolor="#18181b",
-    ),
+    polar={
+        "radialaxis": {"visible": True, "range": [0, 100], "gridcolor": "#27272a", "tickfont": {"color": "#71717a"}},
+        "angularaxis": {"gridcolor": "#27272a", "tickfont": {"color": "#a1a1aa"}},
+        "bgcolor": "#18181b",
+    },
     showlegend=True,
     height=500,
-    margin=dict(l=60, r=60, t=30, b=60),
+    margin={"l": 60, "r": 60, "t": 30, "b": 60},
 )
 st.plotly_chart(fig_radar, use_container_width=True)
 
@@ -299,7 +294,7 @@ for i, (_, row) in enumerate(comp_df.iterrows()):
         mode="markers+text",
         text=[row["web_name"]],
         textposition="top center",
-        marker=dict(size=14, color=_radar_colors[i % len(_radar_colors)]),
+        marker={"size": 14, "color": _radar_colors[i % len(_radar_colors)]},
         name=f"{row['web_name']} ({row['team_short']})",
     ))
 
@@ -373,7 +368,7 @@ else:
     fig_avg.update_layout(
         title=f"Average Fixture Score (GW{gw_range[0]}–{gw_range[1]})",
         yaxis_title="Fixture Score",
-        yaxis=dict(range=[0, 110]),
+        yaxis={"range": [0, 110]},
         height=350,
     )
     st.plotly_chart(fig_avg, use_container_width=True)
@@ -398,14 +393,14 @@ else:
         texttemplate="%{text}",
         textfont={"size": 11, "color": "#fafafa"},
         showscale=True,
-        colorbar=dict(title="Difficulty", tickfont=dict(color="#a1a1aa")),
+        colorbar={"title": "Difficulty", "tickfont": {"color": "#a1a1aa"}},
         zmin=1,
         zmax=5,
     ))
     fig_heat.update_layout(
         height=max(300, len(pivot_diff) * 40 + 100),
         xaxis_title="Team",
-        yaxis=dict(autorange="reversed"),
+        yaxis={"autorange": "reversed"},
     )
     st.plotly_chart(fig_heat, use_container_width=True)
 

@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -291,9 +290,14 @@ def _classify_one(
             )
 
     # Rule 4: Assists miss
-    if actual_assists is not None and predicted_assists is not None:
-        if predicted_assists > 0.3 and actual_assists == 0 and abs_error >= 2:
-            return ErrorRecord(
+    if (
+        actual_assists is not None
+        and predicted_assists is not None
+        and predicted_assists > 0.3
+        and actual_assists == 0
+        and abs_error >= 2
+    ):
+        return ErrorRecord(
                 projection_id=projection.id,
                 player_id=projection.player_id,
                 version_id=version_id,
@@ -311,11 +315,10 @@ def _classify_one(
             )
 
     # Rule 5: Clean sheet miss (for defenders/GKs)
-    if player and player.element_type in (1, 2):  # GKP or DEF
-        if pgws:
-            # Predicted CS contribution but didn't keep clean sheet
-            cs_proj = projection.clean_sheet_proj or 0
-            if cs_proj > 2 and pgws.clean_sheets == 0 and abs_error >= 2:
+    if player and player.element_type in (1, 2) and pgws:  # GKP or DEF
+        # Predicted CS contribution but didn't keep clean sheet
+        cs_proj = projection.clean_sheet_proj or 0
+        if cs_proj > 2 and pgws.clean_sheets == 0 and abs_error >= 2:
                 return ErrorRecord(
                     projection_id=projection.id,
                     player_id=projection.player_id,

@@ -7,7 +7,7 @@ from html import escape
 import streamlit as st
 
 
-def render_player_cards(players_df, max_cards: int = 5) -> None:  # noqa: ANN001
+def render_player_cards(players_df, max_cards: int = 5) -> None:
     """Render a row of player cards with colored left border.
 
     This is the SINGLE implementation — never build player cards inline.

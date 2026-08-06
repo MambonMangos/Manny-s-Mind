@@ -12,39 +12,31 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from database.crud import get_players_dataframe
+from engines.fixture_engine import build_fixture_map
+from services.assistant_manager.chip_strategist import evaluate_chips
+from services.assistant_manager.decision_log import get_chip_states, log_recommendation
+from services.assistant_manager.explainer import (
+    generate_executive_summary,
+)
+from services.assistant_manager.future_planner import plan_future
+from services.assistant_manager.hit_analyzer import analyze_hit
 from services.assistant_manager.models import (
     AssistantReport,
-    ChipRecommendation,
-    SquadEvaluation,
-    TransferPlan,
-    FuturePlan,
 )
 from services.assistant_manager.squad_evaluator import evaluate_squad
 from services.assistant_manager.transfer_engine import generate_transfer_recommendations
-from services.assistant_manager.hit_analyzer import analyze_hit
-from services.assistant_manager.chip_strategist import evaluate_chips
-from services.assistant_manager.future_planner import plan_future
-from services.assistant_manager.decision_log import get_chip_states, log_recommendation
-from services.assistant_manager.explainer import (
-    explain_squad_evaluation,
-    explain_transfer_plan,
-    explain_chip_recommendation,
-    generate_executive_summary,
-)
-
-from database.crud import get_players_dataframe
+from services.fixture_service import fetch_fixtures
 from services.player_service import get_scored_players
 from services.team_service import fetch_team_data, resolve_player_names
-from services.fixture_service import fetch_fixtures
-from engines.fixture_engine import build_fixture_map
-from utils.constants import TEAM_ID
+from utils.team_context import get_current_team_id
 
 logger = logging.getLogger(__name__)
 
 
 def run_assistant(
     session: Session,
-    team_id: int = TEAM_ID,
+    team_id: int | None = None,
     current_gameweek: int | None = None,
 ) -> AssistantReport:
     """Run the full Assistant Manager analysis.
@@ -52,19 +44,25 @@ def run_assistant(
     This is the single entry-point that the UI calls.
     It fetches all data, runs every sub-engine, logs recommendations,
     and returns a complete report.
+
+    ``team_id`` is resolved from the session Team Context when omitted.
     """
+    if team_id is None:
+        team_id = get_current_team_id()
+    if team_id is None:
+        raise ValueError("No FPL team selected — onboarding required before running the Assistant Manager")
     logger.info("Running Assistant Manager for team %d", team_id)
 
     report = AssistantReport(
         team_id=team_id,
-        generated_at=datetime.utcnow(),
+        generated_at=datetime.utcnow(),  # noqa: DTZ003 - naive UTC matches DB convention
         current_gameweek=current_gameweek,
     )
 
     # ── Fetch all data ────────────────────────────────────────────────────
     try:
         player_df = get_scored_players(session)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - report must degrade gracefully, never crash
         logger.error("Failed to fetch player data: %s", e)
         return report
 
@@ -91,7 +89,7 @@ def run_assistant(
     # ── Fetch team picks ──────────────────────────────────────────────────
     try:
         team_data = fetch_team_data(team_id, gameweeks=list(range(1, 39)))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - report must degrade gracefully, never crash
         logger.error("Failed to fetch team data: %s", e)
         return report
 
@@ -156,6 +154,7 @@ def run_assistant(
     # it append-only to the ledger; V1/V2 continue running as shadow (control)
     # models. All downstream recommendations consume the V3 projections when
     # available and fall back to the legacy value-score engines otherwise.
+    fixture_map = build_fixture_map(fixtures)
     store = None
     try:
         from features import build_feature_store
@@ -221,7 +220,6 @@ def run_assistant(
 
     # ── Section 2: Transfer Engine ────────────────────────────────────────
     logger.info("Running transfer engine")
-    fixture_map = build_fixture_map(fixtures)
 
     raw_plan = generate_transfer_recommendations(
         squad_eval=report.squad_evaluation,
@@ -328,7 +326,7 @@ def run_assistant(
                     },
                     confidence=chip_rec.confidence,
                 )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - recommendation logging is best-effort
         logger.warning("Failed to log recommendations: %s", e)
 
     logger.info("Assistant Manager run complete")
