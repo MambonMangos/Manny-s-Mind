@@ -156,9 +156,15 @@ corrected to say exactly that rather than claim a deployment that does not exist
 
 ## 6. Remaining Concerns
 
-1. **Phase 2 work is still uncommitted** (60 modified + 17 untracked files
-   incl. new tests + `ENGINEERING_HISTORY.md`). CI cannot run on GitHub until
-   the workflow file is committed. **Requires an explicit commit instruction.**
+1. **Phase 2 work is now committed** (`a17256a`, pushed) — plus `97cb143`
+   adding the `workflow_dispatch` CI trigger. **However:** GitHub Actions is not
+   executing jobs on this account — a dispatched CI run sat `queued` for 5+
+   minutes with no runner pickup, and the push event that introduced the
+   workflow did not trigger a run at all. This is an **account-level
+   infrastructure issue** (runner availability / Actions billing), not a repo
+   problem. All CI gates were verified locally: `ruff check` clean, `pip check`
+   clean, secrets scan clean, `pytest` 170 passed. **Action:** confirm GitHub
+   Actions runner availability / minutes on the account, then re-dispatch CI.
 2. **Pre-existing (unchanged):** `datetime.utcnow()` deprecation warnings are
    deliberate (`# noqa: DTZ003`, naive-UTC DB convention) — scheduled for a
    future tech-debt pass, out of scope for this sprint.
@@ -173,9 +179,10 @@ corrected to say exactly that rather than claim a deployment that does not exist
 
 ## 7. Recommendations Before the Next Audit
 
-1. **Commit the Phase 2 + verification work**, then confirm the GitHub Actions
-   run is green on `main` — this is the single highest-value action before any
-   further development.
+1. **Commit the Phase 2 + verification work, then confirm CI.** Now done
+   (`a17256a`, `97cb143` pushed). **Outstanding:** confirm GitHub Actions
+   runner availability on the account so the workflow actually executes; then
+   re-dispatch CI and confirm green on `main`.
 2. **Add `test_api_client.py` coverage note** to QA reports so retry/SSL logic
    is seen as guarded by CI.
 3. **Schedule a follow-up for `datetime.utcnow()`** migration to timezone-aware
