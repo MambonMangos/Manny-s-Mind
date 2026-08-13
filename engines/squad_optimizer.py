@@ -251,7 +251,12 @@ def _generate_candidate_squad(
     players: dict,
     budget: float,
 ) -> SquadSolution | None:
-    """Generate a random valid squad candidate."""
+    """Generate a random valid squad candidate.
+
+    A legal FPL squad is always 15 players (2 GKP, 5 DEF, 5 MID, 3 FWD).
+    The selected formation only shapes the starting XI composition; the
+    remaining players form the bench.
+    """
     import random
 
     try:
@@ -259,39 +264,43 @@ def _generate_candidate_squad(
         formation_name = random.choice(list(FORMATION_LIMITS.keys()))
         formation = FORMATION_LIMITS[formation_name]
 
-        # Pick players
+        # Full legal squad — not just the formation XI
         gkp = random.sample(players["GKP"], min(2, len(players["GKP"])))
-        def_ = random.sample(players["DEF"], min(formation["DEF"], len(players["DEF"])))
-        mid = random.sample(players["MID"], min(formation["MID"], len(players["MID"])))
-        fwd = random.sample(players["FWD"], min(formation["FWD"], len(players["FWD"])))
+        def_ = random.sample(players["DEF"], min(5, len(players["DEF"])))
+        mid = random.sample(players["MID"], min(5, len(players["MID"])))
+        fwd = random.sample(players["FWD"], min(3, len(players["FWD"])))
 
-        # Check budget
-        total_price = sum(p["price"] for p in gkp + def_ + mid + fwd)
+        if len(gkp) < 2 or len(def_) < 5 or len(mid) < 5 or len(fwd) < 3:
+            return None
+
+        all_players = gkp + def_ + mid + fwd
+
+        # Check budget over the full 15-man squad
+        total_price = sum(p["price"] for p in all_players)
         if total_price > budget:
             return None
 
         # Check team constraint (max 3 per team)
-        all_players = gkp + def_ + mid + fwd
         team_counts = {}
         for p in all_players:
             team_counts[p["team_id"]] = team_counts.get(p["team_id"], 0) + 1
         if any(v > MAX_PER_TEAM for v in team_counts.values()):
             return None
 
-        # Starting XI: best projected points per position
+        # Starting XI: best projected points per position within the formation
         starting_xi = []
-        bench = []
-
         for pos, count in formation.items():
             pos_players = [p for p in all_players if p["position"] == pos]
             pos_players.sort(key=lambda x: x["projected_points"], reverse=True)
-            starting_xi.extend([p["player_id"] for p in pos_players[:count]])
-            bench.extend([p["player_id"] for p in pos_players[count:]])
+            starting_xi.extend(p["player_id"] for p in pos_players[:count])
 
         # GKP: best starts
         gkp_sorted = sorted(gkp, key=lambda x: x["projected_points"], reverse=True)
         starting_xi.append(gkp_sorted[0]["player_id"])
-        bench.extend([p["player_id"] for p in gkp_sorted[1:]])
+
+        # Bench: the rest of the squad
+        in_starting = set(starting_xi)
+        bench = [p["player_id"] for p in all_players if p["player_id"] not in in_starting]
 
         # Captain: highest projected in starting XI
         captain = max(starting_xi, key=lambda pid: next(
@@ -361,42 +370,49 @@ def _build_fallback_squad(
     players: dict,
     budget: float,
 ) -> SquadSolution | None:
-    """Build a simple fallback squad (best per position)."""
+    """Build a deterministic fallback squad (best per position within budget).
+
+    Always produces a legal 15-man squad (2 GKP, 5 DEF, 5 MID, 3 FWD) when
+    the pool allows it: players are taken in projected-points order and each
+    position bucket is filled to its requirement, respecting the budget and
+    the max-3-per-club rule.
+    """
+    need = {"GKP": 2, "DEF": 5, "MID": 5, "FWD": 3}
+
+    buckets: dict[str, list[dict]] = {"GKP": [], "DEF": [], "MID": [], "FWD": []}
     all_players = []
     for pos_list in players.values():
         all_players.extend(pos_list)
-
-    # Sort by projected points, pick top 15 within budget
     all_players.sort(key=lambda x: x["projected_points"], reverse=True)
 
-    squad = []
-    total_price = 0
-    team_counts = {}
+    team_counts: dict[int, int] = {}
+    total_price = 0.0
 
     for p in all_players:
-        if len(squad) >= SQUAD_SIZE:
-            break
-        if total_price + p["price"] > budget:
+        pos = p["position"]
+        if len(buckets[pos]) >= need[pos]:
             continue
         if team_counts.get(p["team_id"], 0) >= MAX_PER_TEAM:
             continue
-        squad.append(p)
+        if total_price + p["price"] > budget:
+            continue
+        buckets[pos].append(p)
         total_price += p["price"]
         team_counts[p["team_id"]] = team_counts.get(p["team_id"], 0) + 1
 
-    if len(squad) < 11:
+    if any(len(buckets[pos]) < need[pos] for pos in need):
         return None
 
-    gkp = [p["player_id"] for p in squad if p["position"] == "GKP"][:2]
-    def_ = [p["player_id"] for p in squad if p["position"] == "DEF"][:5]
-    mid = [p["player_id"] for p in squad if p["position"] == "MID"][:5]
-    fwd = [p["player_id"] for p in squad if p["position"] == "FWD"][:3]
+    gkp = [p["player_id"] for p in buckets["GKP"]]
+    def_ = [p["player_id"] for p in buckets["DEF"]]
+    mid = [p["player_id"] for p in buckets["MID"]]
+    fwd = [p["player_id"] for p in buckets["FWD"]]
 
     starting_xi = gkp[:1] + def_[:4] + mid[:4] + fwd[:2]
     bench = gkp[1:] + def_[4:] + mid[4:] + fwd[2:]
 
     captain = max(starting_xi, key=lambda pid: next(
-        (p["projected_points"] for p in squad if p["player_id"] == pid), 0
+        (p["projected_points"] for p in all_players if p["player_id"] == pid), 0
     ))
 
     return SquadSolution(
