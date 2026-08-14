@@ -78,6 +78,16 @@ FPL_API_ALLOW_INSECURE_SSL: bool = _env_bool("FPL_API_ALLOW_INSECURE_SSL", False
 
 DATA_STALENESS_SECONDS: int = _env_int("DATA_STALENESS_SECONDS", 3600)
 
+# ── Conversational Assistant (LLM) ──────────────────────────────────────────
+# Optional deployment overrides for the chat assistant. When empty, the
+# config/llm/ YAML category supplies the defaults. The API key itself is a
+# secret and is read via the secrets-aware helper in services.assistant_chat
+# (never here and never in the YAML).
+
+LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "")
+LLM_MODEL: str = os.getenv("LLM_MODEL", "")
+LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "")
+
 # ── FPL Rules ───────────────────────────────────────────────────────────────
 
 FPL_BUDGET: float = 100.0

@@ -263,3 +263,76 @@ if squad_eval.price_risers or squad_eval.price_fallers:
         st.markdown("**Price Falls**")
         for f in squad_eval.price_fallers:
             render_error(f)
+
+# ---------------------------------------------------------------------------
+# Conversational Assistant
+# ---------------------------------------------------------------------------
+
+divider()
+section_label("Conversational Assistant")
+
+from components.domain.chat import (
+    ChatBubble,
+    render_chat_history,
+    render_starter_prompts,
+)
+from services.assistant_chat.config import load_llm_settings
+from services.assistant_chat.context import build_chat_context
+from services.assistant_chat.engine import ChatEngine
+from services.assistant_chat.memory import add_turn, get_conversation
+from services.assistant_chat.providers import get_provider
+from services.assistant_chat.usage import UsageState
+from utils.team_context import get_current_team_name
+
+settings = load_llm_settings()
+provider, offline, offline_reason = get_provider(settings)
+chat_context = build_chat_context(
+    report,
+    team_name=get_current_team_name(),
+    top_projections=settings.top_projections,
+    top_differentials=settings.top_differentials,
+)
+usage = UsageState(team_id)
+engine = ChatEngine(
+    settings, provider, chat_context, usage, offline=offline, offline_reason=offline_reason
+)
+
+if offline and settings.provider != "mock":
+    render_warning(
+        f"Live assistant is unavailable ({offline_reason}); running in offline/demo mode."
+    )
+
+history = get_conversation(team_id)
+bubbles = [
+    ChatBubble(
+        role=message["role"],
+        content=message["content"],
+        sources=message.get("sources", []),
+        degraded=message.get("degraded", False),
+    )
+    for message in history
+]
+render_chat_history(bubbles)
+
+
+def _handle_message(text: str) -> None:
+    """Send one message through the engine and refresh the transcript."""
+    response = engine.respond(text)
+    add_turn(team_id, "user", text)
+    add_turn(
+        team_id,
+        "assistant",
+        response.content,
+        sources=response.sources,
+        degraded=response.degraded,
+    )
+    st.rerun()
+
+
+render_starter_prompts(_handle_message)
+
+chat_prompt = st.chat_input(
+    "Ask about your team — transfers, captaincy, fixtures, what-ifs..."
+)
+if chat_prompt:
+    _handle_message(chat_prompt)
