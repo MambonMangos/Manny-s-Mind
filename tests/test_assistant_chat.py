@@ -509,6 +509,19 @@ def test_tool_captaincy_ranks_owned_squad():
     assert "Data" not in result.content
 
 
+def test_tool_captaincy_falls_back_to_projections_without_squad():
+    context = build_chat_context(make_report())
+    # Simulate no live squad data: drop owned rows, keep V3 projections.
+    context.squad = []
+    result = run_tools(context, "Who should I captain this week?")
+    assert result is not None
+    assert result.name == "captaincy"
+    assert "top V3 captain picks" in result.content
+    # Top projection Proj0 has 8.0 xPts — above any owned player.
+    assert "Proj0" in result.content
+    assert "8.0" in result.content
+
+
 def test_tool_compare_two_players():
     context = build_chat_context(make_report())
     result = run_tools(context, "compare Saka and Palmer")

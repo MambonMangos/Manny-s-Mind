@@ -276,19 +276,35 @@ def evaluate_user_proposal(context: ChatContext, out_name: str, in_name: str,
 
 
 def captaincy(context: ChatContext) -> ToolResult:
-    """Top owned captain picks by V3 xPts, with start risk and fixtures."""
+    """Top captain picks by V3 xPts, with start risk and fixtures.
+
+    Prefers owned squad players. When the squad carries no V3 xPts (e.g. no
+    live squad data yet), falls back to the top V3 projections so the advice
+    stays useful.
+    """
     index = _build_player_index(context)
     owned = [v for v in index.values() if v.get("owned") and "xpts" in v]
-    if not owned:
-        return ToolResult(
-            name="captaincy",
-            content="No squad players with a V3 xPts projection are available "
-                    "to rank. The squad analysis above still lists everyone.",
-            sources=["Squad V3 xPts missing from this report"],
+    if owned:
+        ranked = sorted(owned, key=lambda v: float(v["xpts"]), reverse=True)
+        heading = "Top captain picks from your squad, by V3 xPts:"
+    else:
+        ranked = [
+            v for v in index.values() if v.get("xpts")
+        ]
+        ranked = sorted(ranked, key=lambda v: float(v["xpts"]), reverse=True)
+        if not ranked:
+            return ToolResult(
+                name="captaincy",
+                content="No V3 xPts projections are available in this report to "
+                        "rank captain picks.",
+                sources=["V3 xPts missing from this report"],
+            )
+        heading = (
+            "No live squad data yet, so these are the top V3 captain picks "
+            "available right now:"
         )
-    ranked = sorted(owned, key=lambda v: float(v["xpts"]), reverse=True)
     lines = [
-        "Top captain picks from your squad, by V3 xPts:",
+        heading,
         "",
         "| Player | xPts | Start | Form | Fixtures |",
         "|--------|------|-------|------|----------|",
