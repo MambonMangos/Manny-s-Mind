@@ -182,6 +182,10 @@ def test_load_llm_settings_defaults(monkeypatch):
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
     monkeypatch.delenv("LLM_MODEL", raising=False)
     monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.setattr(chat_config, "LLM_PROVIDER", "")
+    monkeypatch.setattr(chat_config, "LLM_MODEL", "")
+    monkeypatch.setattr(chat_config, "LLM_BASE_URL", "")
+    monkeypatch.setattr(chat_config, "get_api_key", lambda: "")
     settings = chat_config.load_llm_settings()
     assert settings.provider == "openai"
     assert settings.model == "gpt-4o-mini"
@@ -194,7 +198,7 @@ def test_load_llm_settings_env_overrides(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "anthropic")
     monkeypatch.setenv("LLM_MODEL", "claude-haiku")
     monkeypatch.setenv("LLM_BASE_URL", "https://proxy.example")
-    monkeypatch.setenv("LLM_API_KEY", "sk-secret-key")
+    monkeypatch.setattr(chat_config, "get_api_key", lambda: "sk-secret-key")
     settings = chat_config.load_llm_settings()
     assert settings.provider == "anthropic"
     assert settings.model == "claude-haiku"

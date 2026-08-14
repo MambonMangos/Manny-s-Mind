@@ -62,11 +62,10 @@ if report.squad_evaluation is None or not report.squad_evaluation.players:
     render_info(
         "No squad data available yet. "
         "The Assistant Manager needs live gameweek data to analyze your squad. "
-        "Once GW1 kicks off and you have registered your team, this page will activate."
+        "Once GW1 kicks off and you have registered your team, this page will activate. "
+        "The Conversational Assistant below is still available."
     )
-    st.stop()
-
-squad_eval = report.squad_evaluation
+    squad_eval = None
 
 
 # ---------------------------------------------------------------------------
@@ -122,147 +121,148 @@ def _to_chip_card(chip) -> ChipCard:
 # Executive Summary
 # ---------------------------------------------------------------------------
 
-section_label("Executive Summary")
+if squad_eval is not None:
+    section_label("Executive Summary")
 
-col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1, 2, 1])
 
-with col1:
-    render_squad_rating(squad_eval.overall_rating)
+    with col1:
+        render_squad_rating(squad_eval.overall_rating)
 
-with col2:
-    st.markdown(report.executive_summary)
+    with col2:
+        st.markdown(report.executive_summary)
 
-with col3:
-    render_squad_summary_cards(
-        total_value=squad_eval.total_value,
-        bank=squad_eval.bank,
-        free_transfers=squad_eval.free_transfers,
-        saved_transfers=squad_eval.saved_transfers,
-    )
+    with col3:
+        render_squad_summary_cards(
+            total_value=squad_eval.total_value,
+            bank=squad_eval.bank,
+            free_transfers=squad_eval.free_transfers,
+            saved_transfers=squad_eval.saved_transfers,
+        )
 
-divider()
+    divider()
 
-# ---------------------------------------------------------------------------
-# Transfer Recommendations
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    # Transfer Recommendations
+    # ---------------------------------------------------------------------------
 
-section_label("Transfer Recommendations")
+    section_label("Transfer Recommendations")
 
-if report.transfer_plan and report.transfer_plan.transfers:
-    for rec in report.transfer_plan.transfers:
-        render_transfer_card(_to_transfer_card(rec))
-else:
-    render_info("No transfer recommendations at this time.")
-
-divider()
-
-# ---------------------------------------------------------------------------
-# Chip Strategy
-# ---------------------------------------------------------------------------
-
-section_label("Chip Strategy")
-
-if report.chip_recommendations:
-    chip_cols = st.columns(4)
-    for i, chip in enumerate(report.chip_recommendations):
-        with chip_cols[i]:
-            render_chip_card(_to_chip_card(chip))
-else:
-    render_info("No chip recommendations available.")
-
-divider()
-
-# ---------------------------------------------------------------------------
-# Squad Breakdown
-# ---------------------------------------------------------------------------
-
-section_label("Squad Breakdown")
-
-# Player ratings
-player_data = []
-for p in squad_eval.players:
-    player_data.append({
-        "Player": p.web_name,
-        "Team": p.team_short,
-        "Pos": p.position,
-        "Price": f"£{p.price:.1f}m",
-        "Pts": p.total_points,
-        "Form": p.form,
-        "xGI/90": f"{p.xgi_per_90:.2f}",
-        "Value": f"{p.value_score:.0f}",
-        "Rating": f"{p.squad_rating:.0f}/100",
-    })
-
-player_df = pd.DataFrame(player_data)
-st.dataframe(player_df, use_container_width=True, hide_index=True)
-
-# Strengths and Weaknesses
-col_strengths, col_weaknesses = st.columns(2)
-
-with col_strengths:
-    st.markdown("**Strengths**")
-    if squad_eval.strengths:
-        for s in squad_eval.strengths[:10]:
-            st.markdown(f"- {escape(s)}")
+    if report.transfer_plan and report.transfer_plan.transfers:
+        for rec in report.transfer_plan.transfers:
+            render_transfer_card(_to_transfer_card(rec))
     else:
-        render_info("No strengths identified.")
+        render_info("No transfer recommendations at this time.")
 
-with col_weaknesses:
-    st.markdown("**Weaknesses**")
-    if squad_eval.weaknesses:
-        for w in squad_eval.weaknesses[:10]:
-            st.markdown(f"- {escape(w)}")
+    divider()
+
+    # ---------------------------------------------------------------------------
+    # Chip Strategy
+    # ---------------------------------------------------------------------------
+
+    section_label("Chip Strategy")
+
+    if report.chip_recommendations:
+        chip_cols = st.columns(4)
+        for i, chip in enumerate(report.chip_recommendations):
+            with chip_cols[i]:
+                render_chip_card(_to_chip_card(chip))
     else:
-        render_info("No weaknesses identified.")
+        render_info("No chip recommendations available.")
 
-# Injuries and Risks
-if squad_eval.injuries or squad_eval.rotation_risks:
     divider()
-    section_label("Alerts")
 
-    if squad_eval.injuries:
-        st.markdown("**Injuries/Doubts**")
-        for i in squad_eval.injuries:
-            render_warning(i)
+    # ---------------------------------------------------------------------------
+    # Squad Breakdown
+    # ---------------------------------------------------------------------------
 
-    if squad_eval.rotation_risks:
-        st.markdown("**Rotation Risks**")
-        for r in squad_eval.rotation_risks:
-            render_warning(r)
+    section_label("Squad Breakdown")
 
-# Fixture Analysis
-if squad_eval.excellent_fixtures or squad_eval.poor_fixtures:
-    divider()
-    section_label("Fixture Analysis")
+    # Player ratings
+    player_data = []
+    for p in squad_eval.players:
+        player_data.append({
+            "Player": p.web_name,
+            "Team": p.team_short,
+            "Pos": p.position,
+            "Price": f"£{p.price:.1f}m",
+            "Pts": p.total_points,
+            "Form": p.form,
+            "xGI/90": f"{p.xgi_per_90:.2f}",
+            "Value": f"{p.value_score:.0f}",
+            "Rating": f"{p.squad_rating:.0f}/100",
+        })
 
-    col_easy, col_hard = st.columns(2)
+    player_df = pd.DataFrame(player_data)
+    st.dataframe(player_df, use_container_width=True, hide_index=True)
 
-    with col_easy:
-        st.markdown("**Favorable Fixtures**")
-        for f in squad_eval.excellent_fixtures:
-            render_success(f)
+    # Strengths and Weaknesses
+    col_strengths, col_weaknesses = st.columns(2)
 
-    with col_hard:
-        st.markdown("**Difficult Fixtures**")
-        for f in squad_eval.poor_fixtures:
-            render_error(f)
+    with col_strengths:
+        st.markdown("**Strengths**")
+        if squad_eval.strengths:
+            for s in squad_eval.strengths[:10]:
+                st.markdown(f"- {escape(s)}")
+        else:
+            render_info("No strengths identified.")
 
-# Price Movers
-if squad_eval.price_risers or squad_eval.price_fallers:
-    divider()
-    section_label("Price Movements")
+    with col_weaknesses:
+        st.markdown("**Weaknesses**")
+        if squad_eval.weaknesses:
+            for w in squad_eval.weaknesses[:10]:
+                st.markdown(f"- {escape(w)}")
+        else:
+            render_info("No weaknesses identified.")
 
-    col_risers, col_fallers = st.columns(2)
+    # Injuries and Risks
+    if squad_eval.injuries or squad_eval.rotation_risks:
+        divider()
+        section_label("Alerts")
 
-    with col_risers:
-        st.markdown("**Price Rises**")
-        for r in squad_eval.price_risers:
-            render_success(r)
+        if squad_eval.injuries:
+            st.markdown("**Injuries/Doubts**")
+            for i in squad_eval.injuries:
+                render_warning(i)
 
-    with col_fallers:
-        st.markdown("**Price Falls**")
-        for f in squad_eval.price_fallers:
-            render_error(f)
+        if squad_eval.rotation_risks:
+            st.markdown("**Rotation Risks**")
+            for r in squad_eval.rotation_risks:
+                render_warning(r)
+
+    # Fixture Analysis
+    if squad_eval.excellent_fixtures or squad_eval.poor_fixtures:
+        divider()
+        section_label("Fixture Analysis")
+
+        col_easy, col_hard = st.columns(2)
+
+        with col_easy:
+            st.markdown("**Favorable Fixtures**")
+            for f in squad_eval.excellent_fixtures:
+                render_success(f)
+
+        with col_hard:
+            st.markdown("**Difficult Fixtures**")
+            for f in squad_eval.poor_fixtures:
+                render_error(f)
+
+    # Price Movers
+    if squad_eval.price_risers or squad_eval.price_fallers:
+        divider()
+        section_label("Price Movements")
+
+        col_risers, col_fallers = st.columns(2)
+
+        with col_risers:
+            st.markdown("**Price Rises**")
+            for r in squad_eval.price_risers:
+                render_success(r)
+
+        with col_fallers:
+            st.markdown("**Price Falls**")
+            for f in squad_eval.price_fallers:
+                render_error(f)
 
 # ---------------------------------------------------------------------------
 # Conversational Assistant
