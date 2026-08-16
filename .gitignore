@@ -57,3 +57,4 @@ instance/
 # Config (keep example, ignore local overrides)
 config/*.local.yaml
 config/*.override.yaml
+data_research/

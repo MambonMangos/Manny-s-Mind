@@ -61,6 +61,24 @@ Per version + gameweek, `validate_version()` produces a `ValidationReport`:
 - `tests/test_validation.py` — engine unit tests (CI calibration, metric computation, persistence).
 - Validation logic is the safety net that lets the platform evolve predictions without regressing.
 
+## 5.5 Offline / historical validation (research)
+
+Separate from the DB-backed platform validation, the historical-data program runs
+**walk-forward** validation on reconstructed past gameweek states
+(`research/validation.py`, Model A–F ablation):
+
+- **fold1** train 2022-23 → validate 2023-24; **fold2** train 2022-23+23-24 → validate 2024-25.
+- Metrics per (fold, model): points MAE/RMSE/bias/correlation, minutes MAE, start
+  probability accuracy, sub-rate MAE/bias on non-starters, and per-gameweek
+  predicted-vs-actual top-10 overlap.
+- Reproduce with `python -m research.run_validation`; results cached in
+  `data_research/results/` (`ablation_summary.csv`, per-model prediction CSVs).
+- The strongest model is registered as a **shadow candidate** (`research/candidates.py`,
+  `data_research/results/shadow_candidate.json`) and is **not promoted** — promotion
+  requires ≥5 GWs of live shadow comparison and a manual decision.
+
+Full details: `docs/historical_data.md`, closeout `reports/historical_data_integration.md`.
+
 ## 6. Known Gaps (Phase 1, no fixes applied)
 
 | Gap | Impact |

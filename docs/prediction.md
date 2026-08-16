@@ -132,3 +132,23 @@ Prioritised after GW1 validation data is available:
 7. **Persistent freshness** — store last-refresh timestamp in the DB (TD-8).
 
 Each item is a behaviour-preserving refactor followed by validation, not a model change.
+
+## 6. Historical-Data Shadow Candidate (registered, not promoted)
+
+The historical-data program (Phases 1–8, `docs/historical_data.md`, closeout
+`reports/historical_data_integration.md`) produced an empirically calibrated
+candidate: **`v3_hist_d_team`** (`expected_points_v1_hist` ×
+`expected_minutes_v1_hist`, with `hist_*` player + team features). Walk-forward
+validation shows it improves RMSE, bias and per-gameweek top-10 identification
+over the production V3 baseline. It is registered as a **shadow candidate**
+(`research/candidates.py`, `data_research/results/shadow_candidate.json`) with
+`promotion_status: not_promoted`.
+
+**Promotion is deliberately not automatic** — it requires:
+1. ≥5 consecutive gameweeks running as a shadow alongside the production primary,
+2. a head-to-head MAE/RMSE comparison over that window,
+3. an explicit manual decision to point `config/active.yaml` (or a new
+   `production_vN.yaml`) at the candidate.
+
+Until then production V3 (`expected_points_v1` × `expected_minutes_v1`) is
+unchanged and remains the primary model.

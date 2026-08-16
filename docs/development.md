@@ -85,4 +85,5 @@ alembic upgrade head                      # after model changes
 - Database/migrations: `docs/database.md`
 - Prediction system: `docs/prediction.md`
 - Validation platform: `docs/validation.md`
+- Historical data program: `docs/historical_data.md`
 - Operations & release: `docs/operations.md`

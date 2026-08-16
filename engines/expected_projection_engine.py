@@ -84,6 +84,8 @@ class ExpectedPlayerProjection:
 def run_expected_projection(
     store,
     gameweek_id: int = 0,
+    points_version: str | None = None,
+    minutes_version: str | None = None,
 ) -> list[ExpectedPlayerProjection]:
     """Run both V3 engines and compose the final xPts projection.
 
@@ -93,28 +95,33 @@ def run_expected_projection(
         Central feature store.
     gameweek_id : int
         Target gameweek.
+    points_version : str | None
+        Optional ``expected_points`` config version (None = active/production).
+    minutes_version : str | None
+        Optional ``expected_minutes`` config version (None = active/production).
 
     Returns
     -------
     list[ExpectedPlayerProjection]
         One per player, sorted by player_id.
     """
-    xpts_90 = project_expected_points(store, gameweek_id)
-    minutes = project_expected_minutes(store, gameweek_id)
-    return compose_expected_projections(xpts_90, minutes, gameweek_id)
+    xpts_90 = project_expected_points(store, gameweek_id, config_version=points_version)
+    minutes = project_expected_minutes(store, gameweek_id, config_version=minutes_version)
+    return compose_expected_projections(xpts_90, minutes, gameweek_id, points_version)
 
 
 def compose_expected_projections(
     xpts_90: list[ExpectedPointsProjection],
     minutes: list[ExpectedMinutesProjection],
     gameweek_id: int = 0,
+    points_version: str | None = None,
 ) -> list[ExpectedPlayerProjection]:
     """Compose per-90 rates with expected minutes into full gameweek xPts.
 
     ``xPts = xPts_per_90 * (expected_minutes / 90)`` with variance propagated
     from both the rate estimate and the minutes estimate.
     """
-    cfg = load_config("expected_points")
+    cfg = load_config("expected_points", points_version)
     ci_config = cfg.get("confidence_intervals", {"ci_80_z": 1.28, "ci_95_z": 1.96})
     variance_config = cfg.get("variance_sources", _default_variance_sources())
     quality_multipliers = cfg.get("confidence", {}).get(

@@ -1,0 +1,125 @@
+"""Deliverable C: V3 historical baseline report generator.
+
+Reads the predictions CSV and writes reports/historical_v3_backtest.md.
+"""
+
+from __future__ import annotations
+
+import logging
+
+import numpy as np
+import pandas as pd
+
+from research import config, metrics
+
+logger = logging.getLogger(__name__)
+
+
+def _fmt(x) -> str:
+    if x is None or (isinstance(x, float) and np.isnan(x)):
+        return "—"
+    return f"{x:.3f}"
+
+
+def _fmt_int(x) -> str:
+    if x is None or (isinstance(x, float) and np.isnan(x)):
+        return "—"
+    return f"{int(x)}"
+
+
+def _table(df: pd.DataFrame, group_cols: list[str]) -> str:
+    s = metrics.summarise(df, group_cols=group_cols)
+    cols = ["n", "actual_mean", "predicted_mean", "bias_points", "mae_points",
+            "rmse_points", "corr_points", "mae_minutes", "corr_minutes",
+            "actual_starts_mean", "expected_minutes_mean"]
+    lines = ["| " + " | ".join(group_cols + cols) + " |",
+             "|" + "---|" * (len(group_cols) + len(cols))]
+    for _, row in s.iterrows():
+        vals = []
+        for c in group_cols + cols:
+            if c in group_cols:
+                vals.append(str(row[c]))
+            elif c == "n":
+                vals.append(_fmt_int(row[c]))
+            else:
+                vals.append(_fmt(row[c]))
+        lines.append("| " + " | ".join(vals) + " |")
+    return "\n".join(lines)
+
+
+def generate_report(preds: pd.DataFrame) -> str:
+    d = preds[preds["actual_points"].notna()].copy()
+    # Assistant Manager (2024-25) is not a modelled player — exclude from analysis.
+    d = d[~d["position"].isin(["AM", "", "None"])].copy()
+    faithful = d[d["season_mode"] == "faithful"]
+    proxy = d[d["season_mode"] == "proxy"]
+
+    lines = []
+    a = lines.append
+    a("# V3 Historical Backtest — Deliverable C")
+    a("")
+    a(f"**Date:** 2026-08-14 · **Data:** vaastav pinned `{config.SOURCE_PIN}` · "
+      f"**Model:** `expected_points_v1` × `expected_minutes_v1` (production V3, run read-only)")
+    a("")
+    a(f"Prediction rows (with actuals, players only): **{len(d)}** across "
+      f"{len(d['season'].unique())} seasons "
+      f"(faithful: {len(faithful['season'].unique())}, proxy: {len(proxy['season'].unique())}).")
+    a("")
+    a("## Overall (V3 as-is, aggregated across seasons)")
+    a(_table(d, group_cols=["season_mode"]))
+    a("")
+    a("## By season")
+    a(_table(d, group_cols=["season", "season_mode"]))
+    a("")
+    a("## By position (faithful seasons only)")
+    a(_table(faithful, group_cols=["position"]))
+    a("")
+    a("## By position (proxy seasons only)")
+    a(_table(proxy, group_cols=["position"]))
+    a("")
+    a("## By gameweek (faithful seasons, aggregated across seasons)")
+    s = metrics.summarise(faithful, group_cols=["round"])
+    a("| round | n | actual_mean | predicted_mean | bias_points | mae_points | corr_points |")
+    a("|---:|---:|---:|---:|---:|---:|---:|")
+    for _, row in s.iterrows():
+        a(f"| {int(row['round'])} | {_fmt_int(row['n'])} | {_fmt(row['actual_mean'])} "
+          f"| {_fmt(row['predicted_mean'])} | {_fmt(row['bias_points'])} "
+          f"| {_fmt(row['mae_points'])} | {_fmt(row['corr_points'])} |")
+    a("")
+    a("## Calibration (predicted vs actual, faithful seasons)")
+    a("| bucket | n | mean_predicted | mean_actual | mae |")
+    a("|---:|---:|---:|---:|---:|")
+    for _, row in metrics.calibration_buckets(faithful, n_buckets=5).iterrows():
+        a(f"| {row['bucket']} | {_fmt_int(row['n'])} | {_fmt(row['mean_predicted'])} "
+          f"| {_fmt(row['mean_actual'])} | {_fmt(row['mae'])} |")
+    a("")
+    a("## Minutes accuracy (faithful seasons)")
+    s = metrics.summarise(faithful, group_cols=["position"])
+    a("| position | n | mae_minutes | corr_minutes | actual_starts_mean | expected_minutes_mean |")
+    a("|---:|---:|---:|---:|---:|---:|")
+    for _, row in s.iterrows():
+        a(f"| {row['position']} | {_fmt_int(row['n'])} | {_fmt(row['mae_minutes'])} "
+          f"| {_fmt(row['corr_minutes'])} | {_fmt(row['actual_starts_mean'])} "
+          f"| {_fmt(row['expected_minutes_mean'])} |")
+    a("")
+    a("## Interpretation notes")
+    a("")
+    a("- **Under-prediction:** V3's predicted points run well below actual mean in "
+      "every season/mode (bias < 0). This is expected: xPts/90 scales from a "
+      "short cumulative window and `expected_minutes` is capped by start "
+      "probability × minutes_if_starting.")
+    a("- **Proxy seasons (2019-20..2021-22):** `starts` and xG do not exist in the "
+      "source data, so the minutes engine runs on starts=0 and the points engine on "
+      "xG=0 (see historical_data_audit.md §3). Their numbers are NOT comparable to "
+      "the faithful seasons.")
+    a("- **Sample size:** 3 faithful seasons is enough to establish *direction* of "
+      "biases but not statistical significance. Treat cross-season stability claims "
+      "as indicative.")
+    a("")
+    a("*Generated by `research/report.py`. Predictions CSV: "
+      "`data_research/results/v3_baseline_predictions.csv`.*")
+
+    path = config.REPORT_DIR / "historical_v3_backtest.md"
+    path.write_text("\n".join(lines))
+    logger.info("wrote %s", path)
+    return str(path)

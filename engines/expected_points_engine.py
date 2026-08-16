@@ -69,6 +69,7 @@ class ExpectedPointsProjection:
 def project_expected_points(
     store,
     gameweek_id: int = 0,
+    config_version: str | None = None,
 ) -> list[ExpectedPointsProjection]:
     """Compute xPts/90 for every player in the FeatureStore.
 
@@ -78,13 +79,17 @@ def project_expected_points(
         Central feature store (single source of truth for all inputs).
     gameweek_id : int
         Target gameweek (used only for metadata/rounding consistency).
+    config_version : str | None
+        Optional version of the ``expected_points`` config to load (e.g.
+        "expected_points_v1_hist"). None loads the active version — the
+        production behaviour, byte-for-byte unchanged.
 
     Returns
     -------
     list[ExpectedPointsProjection]
         One per player, sorted by player_id.
     """
-    cfg = load_config("expected_points")
+    cfg = load_config("expected_points", config_version)
     position_values = cfg.get("position_values", _default_position_values())
     cs_cfg = cfg.get("clean_sheet", {})
     bonus_cfg = cfg.get("bonus", {})
@@ -93,6 +98,7 @@ def project_expected_points(
     set_piece_cfg = cfg.get("set_pieces", {})
     fixture_cfg = cfg.get("fixture", {})
     confidence_cfg = cfg.get("confidence", {})
+    empirical = cfg.get("empirical", {})
 
     xgi = store.xgi_features()
     set_pieces = store.set_piece_features()
@@ -113,17 +119,46 @@ def project_expected_points(
         xg_90 = _per_90(_col(xgi, idx, "xg_raw"), games_played)
         xa_90 = _per_90(_col(xgi, idx, "xa_raw"), games_played)
         xgc_90 = _per_90(_col(xgi, idx, "xgc_raw"), games_played)
+
+        # --- Empirical historical calibration (optional, config-gated) ------
+        finishing = empirical.get("finishing", {}) if empirical else {}
+        creative = empirical.get("creative", {}) if empirical else {}
+        if finishing:
+            xg_90 *= float(finishing.get(position, 1.0) or 1.0)
+        if creative:
+            xa_90 *= float(creative.get(position, 1.0) or 1.0)
+
+        # Previous-season shrinkage for tiny current-season samples.
+        prev_blend = empirical.get("prev_season", {}) if empirical else {}
+        if prev_blend and games_played < int(prev_blend.get("min_current_games", 3)):
+            prev_w = float(prev_blend.get("prev_weight", 0.0) or 0.0)
+            prev_xg = float(row.get("hist_prev_xg_per_90", 0) or 0)
+            prev_xa = float(row.get("hist_prev_xa_per_90", 0) or 0)
+            xg_90 = (1 - prev_w) * xg_90 + prev_w * prev_xg
+            xa_90 = (1 - prev_w) * xa_90 + prev_w * prev_xa
+
+        # Empirical team-strength adjustment (active only with hist_team_* cols).
+        team_adj = empirical.get("historical_team", {}) if empirical else {}
+        if team_adj:
+            attack_adj = float(row.get("hist_team_attack_adj", 1.0) or 1.0)
+            defense_adj = float(row.get("hist_team_defense_adj", 1.0) or 1.0)
+            a_w = float(team_adj.get("attack_weight", 0.0) or 0.0)
+            d_w = float(team_adj.get("defense_weight", 0.0) or 0.0)
+            xg_90 *= 1 - a_w + a_w * attack_adj
+            xa_90 *= 1 - a_w + a_w * attack_adj
+            xgc_90 *= 1 - d_w + d_w * defense_adj
+
         xgc_90 = _team_strength_adjust(xgc_90, row, cs_cfg)
 
         # Clean-sheet probability (GKP/DEF only)
         if position in ("GKP", "DEF"):
-            clean_sheet_prob = _clean_sheet_prob(xgc_90, cs_cfg)
+            clean_sheet_prob = _clean_sheet_prob(xgc_90, cs_cfg, empirical)
         else:
             clean_sheet_prob = 0.0
 
         # Auxiliary point sources
         bps_per_90 = _per_90(float(row.get("bps", 0) or 0), games_played)
-        expected_bonus = _expected_bonus(bps_per_90, bonus_cfg)
+        expected_bonus = _expected_bonus(bps_per_90, bonus_cfg, empirical, position)
 
         saves_per_90 = _per_90(float(row.get("saves", 0) or 0), games_played)
         expected_saves = _expected_saves(saves_per_90, position, saves_cfg)
@@ -256,25 +291,51 @@ def _team_strength_adjust(xgc_90: float, row: pd.Series, cs_cfg: dict) -> float:
     return xgc_90 * (anchor / team_strength)
 
 
-def _clean_sheet_prob(xgc_90: float, cs_cfg: dict) -> float:
+def _clean_sheet_prob(xgc_90: float, cs_cfg: dict, empirical: dict | None = None) -> float:
     """Estimate clean-sheet probability from xGC/90.
 
-    Anchored so the average team (xGC/90 = league_avg) lands near 0.25.
+    Empirical (historical) model, when configured:
+        cs_prob = clip(intercept + slope * xgc_90, 0, max_clean_sheet_prob)
+    otherwise the default anchored closed form (production behaviour).
     """
-    league_avg = float(cs_cfg.get("league_avg_xgc_per_90", 1.4) or 1.4)
-    multiplier = float(cs_cfg.get("cs_rate_multiplier", 0.5) or 0.5)
     max_prob = float(cs_cfg.get("max_clean_sheet_prob", 0.6) or 0.6)
     min_prob = float(cs_cfg.get("min_clean_sheet_prob", 0.0) or 0.0)
+    cs_emp = empirical.get("clean_sheet", {}) if empirical else {}
+    if cs_emp:
+        model = cs_emp.get("GKP", cs_emp.get("DEF")) or {}
+        if model:
+            prob = float(model.get("intercept", 0.0) or 0.0) + float(model.get("slope", 0.0) or 0.0) * xgc_90
+            return float(np.clip(prob, min_prob, max_prob))
+
+    league_avg = float(cs_cfg.get("league_avg_xgc_per_90", 1.4) or 1.4)
+    multiplier = float(cs_cfg.get("cs_rate_multiplier", 0.5) or 0.5)
     if league_avg <= 0:
         return 0.25
     prob = (league_avg - xgc_90) / league_avg * multiplier
     return float(np.clip(prob, min_prob, max_prob))
 
 
-def _expected_bonus(bps_per_90: float, bonus_cfg: dict) -> float:
-    """Convert expected BPS/90 into expected bonus points."""
-    divisor = float(bonus_cfg.get("bps_per_bonus_point", 160) or 160)
+def _expected_bonus(
+    bps_per_90: float,
+    bonus_cfg: dict,
+    empirical: dict | None = None,
+    position: str | None = None,
+) -> float:
+    """Convert expected BPS/90 into expected bonus points.
+
+    Empirical (historical) model, when configured for the position:
+        expected_bonus = clip(intercept + slope * bps_per_90, 0, max_bonus_points)
+    otherwise the default divisor model (production behaviour).
+    """
     cap = float(bonus_cfg.get("max_bonus_points", 3) or 3)
+    bonus_emp = empirical.get("bonus", {}) if empirical else {}
+    if position and bonus_emp:
+        model = bonus_emp.get(position) or {}
+        if model and "slope" in model:
+            prob = float(model.get("intercept", 0.0) or 0.0) + float(model.get("slope", 0.0) or 0.0) * bps_per_90
+            return float(np.clip(prob, 0.0, cap))
+
+    divisor = float(bonus_cfg.get("bps_per_bonus_point", 160) or 160)
     if divisor <= 0:
         return 0.0
     return float(np.clip(bps_per_90 / divisor, 0.0, cap))

@@ -1,0 +1,117 @@
+version: hist-1.0.0
+created_at: '2026-08-04'
+description: 'Expected Points (xPts/90) with empirical historical calibration (finishing/creative/bonus/clean-sheet)
+  fit on faithful seasons. Train seasons: 2022-23. Source pin: 8c97b2adb123863c3dd581e730f1360e89815ac2.'
+position_values:
+  GKP:
+    goal: 10
+    assist: 3
+    clean_sheet: 1
+    save_per_2: 1
+    penalty_save: 3
+    yellow_card: -1
+    red_card: -3
+    own_goal: -2
+  DEF:
+    goal: 6
+    assist: 3
+    clean_sheet: 4
+    yellow_card: -1
+    red_card: -3
+    own_goal: -2
+  MID:
+    goal: 5
+    assist: 3
+    clean_sheet: 1
+    yellow_card: -1
+    red_card: -3
+    own_goal: -2
+  FWD:
+    goal: 4
+    assist: 3
+    clean_sheet: 0
+    yellow_card: -1
+    red_card: -3
+    own_goal: -2
+clean_sheet:
+  league_avg_xgc_per_90: 1.4
+  cs_rate_multiplier: 0.5
+  max_clean_sheet_prob: 0.6
+  min_clean_sheet_prob: 0.0
+  team_strength_anchor: 1000
+bonus:
+  bps_per_bonus_point: 160.0
+  max_bonus_points: 3.0
+saves:
+  saves_per_bonus_point: 2.0
+  max_saves_per_90: 6.0
+cards:
+  yellow_card_rate_weight: 1.0
+  red_card_rate_weight: 1.0
+set_pieces:
+  penalty_taker_bonus: 0.25
+  fk_taker_bonus: 0.05
+  corner_taker_bonus: 0.05
+fixture:
+  base_difficulty: 3
+  floor_multiplier: 0.5
+confidence_intervals:
+  ci_80_z: 1.28
+  ci_95_z: 1.96
+variance_sources:
+  rate: 0.4
+  minutes: 0.35
+  base: 0.25
+confidence:
+  no_data: 20
+  limited_data: 40
+  moderate_data: 60
+  good_data: 75
+  quality_multipliers:
+    none: 1.5
+    limited: 1.2
+    moderate: 1.0
+    good: 0.8
+empirical:
+  finishing:
+    GKP: 1.0
+    DEF: 1.0001290198868176
+    MID: 1.3
+    FWD: 1.3
+  creative:
+    GKP: 1.375823401726283
+    DEF: 1.5354183567857618
+    MID: 1.6
+    FWD: 1.6
+  bonus:
+    GKP:
+      intercept: -0.2274
+      slope: 0.03031
+    DEF:
+      intercept: 0.1845
+      slope: 0.0005
+    MID:
+      intercept: 0.1424
+      slope: 0.00302
+    FWD:
+      intercept: 0.0254
+      slope: 0.01891
+  clean_sheet:
+    GKP:
+      intercept: 0.7119
+      slope: -0.2035
+    DEF:
+      intercept: 0.7119
+      slope: -0.2035
+    MID:
+      intercept: 0.7119
+      slope: -0.2035
+    FWD:
+      intercept: 0.7119
+      slope: -0.2035
+  prev_season:
+    min_current_games: 3
+    prev_weight: 0.35
+  historical_team:
+    attack_weight: 0.5
+    defense_weight: 0.5

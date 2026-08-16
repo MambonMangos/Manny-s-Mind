@@ -104,5 +104,7 @@ Every personalized service reads get_current_team_id()
 | `config/` | Versioned YAML configuration | Platform |
 | `alembic/` | Database migrations | Data |
 | `utils/` | Constants, config, env, logging | Platform |
+| `research/` | Offline historical-data research & validation pipeline (identity, features, calibration, preseason, validation, candidates) — never called by the app | ML |
+| `data_research/` | Vendored historical data + research caches/results (gitignored) | ML |
 | `tests/` | Test suite | QA |
 | `docs/` | Documentation | Technical Writer |

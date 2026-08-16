@@ -1,0 +1,84 @@
+version: hist-1.0.0
+created_at: '2026-08-04'
+description: 'Expected Minutes with probability-weighted start/sub/unused model (adds
+  the came-off-the-bench branch). Train seasons: 2022-23, 2023-24, 2024-25. Source
+  pin: 8c97b2adb123863c3dd581e730f1360e89815ac2.'
+minutes_if_starting:
+  GKP: 90
+  DEF: 88
+  MID: 78
+  FWD: 75
+start_probability:
+  unavailable_statuses:
+  - i
+  - s
+  - u
+  doubtful_status: d
+  doubtful_prob: 0.4
+  history_weight: 0.6
+  chance_of_playing_weight: 0.4
+  high_form_threshold: 6.0
+  high_form_boost: 0.05
+  low_form_threshold: 2.0
+  low_form_penalty: 0.05
+  max_start_prob: 0.97
+  min_start_prob: 0.05
+substitution:
+  baseline_risk: 0.1
+  high_minutes_threshold: 78
+  risk_if_expected_full: 0.25
+  typical_sub_minute: 65
+history:
+  min_starts_for_history: 3
+  history_blend: 0.6
+  base_blend: 0.4
+confidence:
+  no_data: 25
+  limited_data: 45
+  moderate_data: 65
+  good_data: 80
+rotation_risk:
+  high_threshold: 0.3
+  medium_threshold: 0.6
+historical_minutes:
+  enabled: true
+  positional:
+    GKP:
+      start_rate_prior: 0.2213
+      alpha: 0.142
+      beta: 0.518
+      min_if_start: 89.5
+      min_if_sub: 83.0
+      sub_rate_given_not_start: 0.0436
+      unused_rate_given_not_start: 0.9564
+    DEF:
+      start_rate_prior: 0.2943
+      alpha: 0.355
+      beta: 0.896
+      min_if_start: 85.4
+      min_if_sub: 42.0
+      sub_rate_given_not_start: 0.1614
+      unused_rate_given_not_start: 0.8386
+    MID:
+      start_rate_prior: 0.2647
+      alpha: 0.317
+      beta: 0.916
+      min_if_start: 80.0
+      min_if_sub: 30.6
+      sub_rate_given_not_start: 0.2501
+      unused_rate_given_not_start: 0.7499
+    FWD:
+      start_rate_prior: 0.2193
+      alpha: 0.279
+      beta: 1.051
+      min_if_start: 79.1
+      min_if_sub: 26.5
+      sub_rate_given_not_start: 0.257
+      unused_rate_given_not_start: 0.743
+  start_prior_weight: 0.8
+  sub_blend_weight: 0.7
+  prev_season:
+    min_current_starts: 3
+    prev_weight: 0.3
+  min_start_prob: 0.03
+  max_start_prob: 0.97

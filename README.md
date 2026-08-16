@@ -13,6 +13,15 @@ A data-driven Fantasy Premier League analytics platform built with Streamlit, SQ
 - **Assistant Manager** — squad evaluation, transfer recommendations, chip strategy, future planning.
 - **Model Analytics** — projection quality metrics, validation, experiment tracking.
 
+## Historical Data Program
+
+An offline research pipeline (`research/`) reconstructs past FPL gameweek states
+from the pinned vaastav dataset and validates V3 model enhancements **without
+touching production** (experimental configs are versioned and never referenced by
+`config/active.yaml`). A walk-forward-validated shadow candidate
+(`v3_hist_d_team`) is registered but **not promoted**. See
+`docs/historical_data.md` and `reports/historical_data_integration.md`.
+
 ## Quick Start
 
 ### Prerequisites
