@@ -73,6 +73,7 @@ Every page calls: `st.set_page_config(layout="wide")`, `inject_theme()`, `ensure
 - **User goal:** *"What is this, and is it ready?"*
 - **Components:** HTML hero title, icon row, 4 static feature cards (`app.py:78`), "Data loaded & ready" badge (`app.py:109`).
 - **Data displayed:** None (static copy).
+- **Access:** Freely viewable — no Team ID required. Team ID is requested only on personalized pages.
 - **UX concerns:**
   - Feature cards are **not clickable** — dead ends that look like CTAs.
   - Hero text confesses it is a "personal project by a beginner" (`app.py:53`) — fine for authenticity, but sets low trust expectations for a data platform.
@@ -472,10 +473,11 @@ Every recommendation ever made, action taken, predicted vs actual points, was_ac
 ### 6.1 Weekly FPL Decision Workflow (primary)
 
 ```
-Open app (About)            → friction: landing page adds a hop
+Open app (About)            → free landing page; no Team ID required
   ↓
-My Team (squad, captain)    → friction: captain shown as "Value Score", no reasoning,
-                             no fixture context for the squad
+My Team (squad, captain)    → friction: first visit prompts for Team ID;
+                              captain shown as "Value Score", no reasoning,
+                              no fixture context for the squad
   ↓
 Player Rankings (buy/sell)  → friction: 8 stacked blocks, filters with hidden labels,
                              "Value Score" unexplained

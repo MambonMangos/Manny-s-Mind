@@ -27,7 +27,7 @@ Manny's FPL House is a data-driven Fantasy Premier League analytics platform. It
 
 ## Data Flow
 
-1. **Onboarding gate** — every personalized page (and the home page) calls `require_team()` (`utils/team_context.py`). New visitors see the welcome/onboarding page (`components/onboarding.py`); a Team ID is validated against the FPL API (`services/team_validation.py`) before it becomes the session's active team. See `docs/onboarding.md`.
+1. **Onboarding gate** — every **personalized** page calls `require_team()` (`utils/team_context.py`). New visitors see the welcome/onboarding page (`components/onboarding.py`); a Team ID is validated against the FPL API (`services/team_validation.py`) before it becomes the session's active team. The home page (`About.py`) is a freely-viewable landing page and does **not** gate on a Team ID. See `docs/onboarding.md`.
 2. **Bootstrap** — `About.py` calls `ensure_data_loaded()` (`utils/helpers.py`), which initialises the database and fetches data from the FPL API when stale.
 3. **Ingest** — `services/data_loader.py` fetches `bootstrap-static` (teams, players, gameweeks) and upserts into SQLite. Fixtures, team history, and picks are fetched on demand by `services/fixture_service.py` and `services/team_service.py`.
 4. **Derive** — `services/scoring.py` normalises raw stats and computes the composite value score using the weights in `config/weights/`.

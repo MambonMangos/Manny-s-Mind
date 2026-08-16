@@ -2,14 +2,17 @@
 
 Manny's FPL House is now a multi-user public application. Every visitor provides
 their **own** FPL Team ID before accessing any personalized pages. The app never
-defaults to Manny's personal team.
+defaults to Manny's personal team. The home page (About) is a freely-viewable
+landing page and does **not** ask for a Team ID.
 
 ## 1. The Visitor Experience
 
 ### First visit
 
-A new visitor lands on `https://mannysfplhouse.com` and sees the **welcome /
-onboarding page** instead of a dashboard:
+A new visitor lands on `https://mannysfplhouse.com` and sees the **About**
+landing page — brand, feature overview, and data status. No Team ID is requested
+here. The Team ID form appears the first time they open a **personalized** page
+(My Team, Team History, Assistant Manager, Model Comparison):
 
 - A short explanation of why the Team ID is needed.
 - A Team ID input with a **Continue** button.
@@ -47,9 +50,10 @@ Current Team
 [ Change Team ]
 ```
 
-Selecting **Change Team** clears the stored Team ID and returns the visitor to
-the onboarding page — no manual browser-state clearing required. Multiple
-sequential team changes work without restarting the session.
+Selecting **Change Team** clears the stored Team ID and routes the visitor to
+the **My Team** page, where the onboarding form re-runs — no manual browser-state
+clearing required. Multiple sequential team changes work without restarting the
+session.
 
 ## 2. Session Architecture
 
@@ -108,7 +112,7 @@ clear_current_team_id()
 
 | Page | Team-specific? | Gated |
 |---|---|---|
-| About (`About.py`) | onboarding host | Yes |
+| About (`About.py`) | No | No — public landing page |
 | 1 · My Team | Yes | Yes |
 | 2 · Player Rankings | No | No |
 | 3 · Team Analysis | No | No |
@@ -148,7 +152,7 @@ result.message      # user-friendly, safe to display
 2. Click **"My Team"** in the top navigation.
 3. Look at the web address in your browser — it ends with `/entry/123456/`.
 4. The number after `/entry/` (here `123456`) is your Team ID.
-5. Enter that number on the onboarding page and click **Continue**.
+5. Enter that number into the Team ID form on the personalized page and click **Continue**.
 
 Team IDs are public on the FPL website — anyone can look up any team by ID.
 Entering one only selects *which* team's data to display.

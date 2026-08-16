@@ -447,6 +447,27 @@ The app **never defaults to Manny's team anymore** — an unvalidated visitor ha
 genuinely public: there is no personal team to leak, and a future login system can hand a
 persistent profile to the same provider without changing any call site.
 
+## 3.12 Landing page de-gating (2026-08-06)
+
+Following the public (Streamlit Cloud) deployment, the **About page no longer
+asks for a Team ID**. It is a freely-viewable landing page (brand, feature
+cards, data status) for first-time visitors.
+
+- Removed `require_team()` from `About.py`.
+- The onboarding form (`components/onboarding.py`) now renders on the first
+  **personalized** page via its existing `require_team()` gate — My Team (1),
+  Team History (4), Assistant Manager (6), Model Comparison (8).
+- Sidebar **Change Team** now routes to `pages/1_My_Team.py` (where the
+  onboarding form re-runs) instead of `About.py`.
+- **Unchanged:** per-session Team Context, validation, log redaction, session
+  isolation, and gating of all personalized pages.
+- Docs updated: `docs/onboarding.md`, `docs/architecture.md`,
+  `docs/ux_discovery_audit.md` (working tree; uncommitted at writing).
+
+**Rationale.** A public landing page should not demand personal data up front.
+The Team ID is only genuinely required by the four squad-specific pages, which
+already carried their own gates.
+
 ---
 
 # 4. Architecture Evolution

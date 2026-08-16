@@ -27,7 +27,7 @@ def render_team_switcher() -> None:
     if st.button("Change Team", use_container_width=True, key="change_team"):
         clear_current_team_id()
         try:
-            st.switch_page("About.py")
+            st.switch_page("pages/1_My_Team.py")
         except Exception:  # noqa: BLE001 - fall back to in-place rerun
             st.rerun()
 

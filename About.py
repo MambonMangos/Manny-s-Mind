@@ -8,7 +8,6 @@ from components.sidebar import render_refresh_button
 from components.theme import divider, inject_theme
 from utils.helpers import ensure_data_loaded
 from utils.logging_setup import setup_logging
-from utils.team_context import require_team
 
 setup_logging()
 
@@ -20,12 +19,6 @@ st.set_page_config(
 )
 
 inject_theme()
-
-# ── Onboarding gate ─────────────────────────────────────────────────────────
-# New visitors land here. require_team() renders the welcome/onboarding page
-# and stops when no validated Team ID exists for this session, so nobody ever
-# sees a default (Manny's) team. Onboarded visitors continue to the About page.
-require_team()
 
 # ── Hero section ────────────────────────────────────────────────────────────
 
