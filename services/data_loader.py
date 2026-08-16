@@ -25,7 +25,7 @@ _PLAYER_FIELDS = (
     "now_cost", "cost_change_start", "cost_change_event",
     "cost_change_start_fall", "cost_change_event_fall",
     "value_form", "value_season",
-    "minutes", "goals_scored", "assists", "clean_sheets",
+    "starts", "minutes", "goals_scored", "assists", "clean_sheets",
     "goals_conceded", "own_goals", "penalties_saved", "penalties_missed",
     "yellow_cards", "red_cards", "saves", "bonus", "bps",
     "influence", "creativity", "threat", "ict_index",
@@ -131,6 +131,10 @@ class DataLoader:
             elif field == "element_type":
                 rec["element_type"] = value
                 rec["element_type_str"] = POSITION_MAP.get(value, "UNK")
+            elif field == "starts":
+                # Preserve the real FPL starts value (matches started). Never
+                # derive starts from minutes — the API supplies it directly.
+                rec[field] = int(value) if value is not None else 0
             else:
                 rec[field] = value
         return rec

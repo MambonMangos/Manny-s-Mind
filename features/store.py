@@ -171,17 +171,27 @@ class FeatureStore:
         df = self.df
 
         f["minutes_season"] = df["minutes"].fillna(0)
-        f["minutes_per_game"] = np.where(
-            df["starts"].fillna(0) > 0,
-            f["minutes_season"] / df["starts"].fillna(1),
-            0.0,
+        # Minutes per start, capped at 90 (a starter cannot earn more than 90
+        # minutes). Uncapped, a few starts + many sub minutes yields absurd
+        # values (e.g. 1 start / 900 min -> 900.0).
+        f["minutes_per_game"] = np.minimum(
+            np.where(
+                df["starts"].fillna(0) > 0,
+                f["minutes_season"] / df["starts"].fillna(1),
+                0.0,
+            ),
+            90.0,
         )
         f["minutes_fraction"] = df["minutes_fraction"].fillna(0)
+        # Observed starts / games played (games ~ minutes/90). Truthful only
+        # because `starts` is the real FPL value, not a minutes-derived proxy.
         f["starts_rate"] = np.where(
             f["minutes_season"] > 0,
             df["starts"].fillna(0) / np.maximum(f["minutes_season"] / 90, 1),
             0.0,
         )
+        # Preserve the raw starts count for engines and diagnostics.
+        f["starts"] = df["starts"].fillna(0).astype(int)
         f["minutes_reliable"] = (f["minutes_fraction"] >= 60).astype(float)
         f["minutes_projected"] = df["minutes_projected"].fillna(60)
 
@@ -445,8 +455,12 @@ def build_feature_store(
         enriched["minutes_projected"] = enriched["minutes"].apply(
             _project_minutes_heuristic
         )
+    # Preserve the real FPL starts value whenever available. Never derive
+    # starts from minutes (round(minutes/90)) — that fabrication made every
+    # player's starts_rate collapse to 1.0. Missing starts degrade to 0.
     if "starts" not in enriched.columns:
-        enriched["starts"] = (enriched["minutes"] / 90).round().astype(int)
+        enriched["starts"] = 0
+    enriched["starts"] = enriched["starts"].fillna(0).astype(int)
 
     store = FeatureStore(
         df=enriched,

@@ -92,6 +92,7 @@ def get_players_dataframe(session: Session) -> pd.DataFrame:
             "position": _position_label(player.element_type),
             "price": player.now_cost / 10.0,
             "minutes": player.minutes,
+            "starts": player.starts or 0,
             "goals_scored": player.goals_scored,
             "assists": player.assists,
             "total_points": player.total_points,

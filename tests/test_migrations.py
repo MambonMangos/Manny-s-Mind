@@ -67,3 +67,21 @@ def test_migrations_are_linear_and_ordered(tmp_path):
     assert result.returncode == 0, result.stderr
     heads = [line for line in result.stdout.splitlines() if line.strip()]
     assert len(heads) == 1, f"Expected a single migration head, got: {heads}"
+
+
+def test_players_table_has_starts_column(tmp_path):
+    """The starts migration must add a non-null, defaulted column."""
+    from sqlalchemy import create_engine, inspect
+
+    db_path = tmp_path / "migrate.db"
+    env = {**os.environ, "DATABASE_URL": f"sqlite:///{db_path}"}
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=PROJECT_ROOT, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
+    )
+
+    engine = create_engine(f"sqlite:///{db_path}")
+    cols = {c["name"]: c for c in inspect(engine).get_columns("players")}
+    assert "starts" in cols, "players.starts column missing after migration"
+    assert not cols["starts"]["nullable"], "players.starts must be NOT NULL"

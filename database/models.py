@@ -75,6 +75,7 @@ class Player(Base):
 
     # performance
     minutes = Column(Integer, default=0)
+    starts = Column(Integer, default=0)  # real FPL starts (matches started, not appearances)
     goals_scored = Column(Integer, default=0)
     assists = Column(Integer, default=0)
     clean_sheets = Column(Integer, default=0)

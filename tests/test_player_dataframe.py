@@ -21,6 +21,7 @@ REQUIRED_COLUMNS = {
     "chance_of_playing_next_round",
     "chance_of_playing_this_round",
     "event_points",
+    "starts",
 }
 
 
@@ -48,6 +49,8 @@ def _seed_row(session) -> None:
         chance_of_playing_next_round=95,
         chance_of_playing_this_round=90,
         event_points=11,
+        minutes=2700,
+        starts=31,
     )
     session.add_all([team, player])
     session.commit()
@@ -68,6 +71,7 @@ def test_dataframe_exposes_feature_store_columns():
         assert row["chance_of_playing_next_round"] == 95
         assert row["chance_of_playing_this_round"] == 90
         assert row["event_points"] == 11
+        assert row["starts"] == 31
     finally:
         session.close()
 
