@@ -47,18 +47,22 @@ discuss.
 
 SOURCES OF TRUTH: Below is a structured context block containing the user's \
 team, V3 expected points (xPts) projections, expected minutes, start \
-probabilities, fixture information, and league context. Treat these numbers \
-as authoritative and compute from them. Never invent numbers that are not in \
-the context. If a number or player is not present in the context, say you do \
-not have that information.
+probabilities, fixture information, and league context. When a shadow model \
+section is present (e.g. "Model D"), it contains an alternative set of \
+projections from a validated shadow candidate. Treat V3 numbers as \
+authoritative and compute from them. Use shadow model numbers for comparison \
+when the user asks about model disagreement or second opinions. Never invent \
+numbers that are not in the context. If a number or player is not present in \
+the context, say you do not have that information.
 
 PROVENANCE: When you state a number, label its origin:
-- "V3 currently projects ..." (model output)
+- "V3 currently projects ..." (primary model output)
+- "Model D projects ..." (shadow candidate output, when present)
 - "FPL data shows ..." (raw FPL data)
 - "Based on your assumption that ..." (user-provided information)
 - "That suggests ..." (your own inference)
-Never present your own inference as if it came from V3, and never present a \
-user assumption as a platform fact.
+Never present your own inference as if it came from V3 or Model D, and never \
+present a user assumption as a platform fact.
 
 ARGUMENT: The user's own ideas are legitimate. Evaluate them against the \
 context numbers, agree where the numbers support the user, and explain any \
@@ -82,6 +86,7 @@ table is welcome; avoid padding. Do not use emojis."""
 @dataclass
 class ChatResponse:
     """One assistant reply, with provenance and status."""
+
     content: str
     provider: str = "mock"
     model: str = "mock"
@@ -147,13 +152,19 @@ class ChatEngine:
                 content=tool_result.content,
                 provider="tool",
                 model="",
-                sources=list(tool_result.sources) if self._settings.include_sources else [],
+                sources=list(tool_result.sources)
+                if self._settings.include_sources
+                else [],
             )
 
         if self._usage.over_limit(self._settings.per_session_request_limit):
-            return ChatResponse(content=_LIMIT_MESSAGE, degraded=True, error="session_limit")
+            return ChatResponse(
+                content=_LIMIT_MESSAGE, degraded=True, error="session_limit"
+            )
         if self._usage.over_token_budget(self._settings.max_session_tokens):
-            return ChatResponse(content=_LIMIT_MESSAGE, degraded=True, error="token_budget")
+            return ChatResponse(
+                content=_LIMIT_MESSAGE, degraded=True, error="token_budget"
+            )
 
         messages = self._build_messages(message)
         timer = Timer()
@@ -166,8 +177,11 @@ class ChatEngine:
                 latency_ms=timer.elapsed_ms(),
                 error=str(exc),
             )
-            logger.warning("assistant_chat provider error for team=%d: %s",
-                           self._context.team_id, exc)
+            logger.warning(
+                "assistant_chat provider error for team=%d: %s",
+                self._context.team_id,
+                exc,
+            )
             return ChatResponse(
                 content=_DEGRADED_MESSAGE,
                 provider=self._provider.name,
@@ -181,8 +195,12 @@ class ChatEngine:
                 latency_ms=timer.elapsed_ms(),
                 error="unexpected",
             )
-            logger.exception("assistant_chat unexpected failure for team=%d", self._context.team_id)
-            return ChatResponse(content=_DEGRADED_MESSAGE, degraded=True, error="unexpected_error")
+            logger.exception(
+                "assistant_chat unexpected failure for team=%d", self._context.team_id
+            )
+            return ChatResponse(
+                content=_DEGRADED_MESSAGE, degraded=True, error="unexpected_error"
+            )
 
         leak = guard_response(result.content, internal_texts=[SYSTEM_PROMPT])
         if leak is not None:
@@ -194,8 +212,11 @@ class ChatEngine:
                 latency_ms=timer.elapsed_ms(),
                 error=f"guard:{leak}",
             )
-            logger.warning("assistant_chat guard blocked reply for team=%d: %s",
-                           self._context.team_id, leak)
+            logger.warning(
+                "assistant_chat guard blocked reply for team=%d: %s",
+                self._context.team_id,
+                leak,
+            )
             return ChatResponse(
                 content=_DEGRADED_MESSAGE,
                 provider=result.provider,
@@ -215,7 +236,9 @@ class ChatEngine:
             content=result.content,
             provider=result.provider,
             model=result.model,
-            sources=list(self._context.sources) if self._settings.include_sources else [],
+            sources=list(self._context.sources)
+            if self._settings.include_sources
+            else [],
             degraded=self._offline,
             usage={
                 "requests": usage.requests,
@@ -233,7 +256,11 @@ class ChatEngine:
             system = f"{system}\n\nCURRENT CONTEXT (authoritative):\n{context_text}"
         messages: list[ChatMessage] = [ChatMessage(role="system", content=system)]
         for turn in last_window(self._context.team_id, self._settings.max_messages):
-            content = frame_user_message(turn["content"]) if turn["role"] == "user" else turn["content"]
+            content = (
+                frame_user_message(turn["content"])
+                if turn["role"] == "user"
+                else turn["content"]
+            )
             messages.append(ChatMessage(role=turn["role"], content=content))
         messages.append(ChatMessage(role="user", content=frame_user_message(message)))
         return messages

@@ -24,9 +24,11 @@ from services.assistant_chat.context import ChatContext
 # Tool result
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ToolResult:
     """A deterministic answer produced by one analytical tool."""
+
     name: str
     content: str
     sources: list[str] = field(default_factory=list)
@@ -36,11 +38,28 @@ class ToolResult:
 # Player view: merge squad / projection / differential rows by name
 # ---------------------------------------------------------------------------
 
-_OWNED_FIELDS = ("price", "form", "xgi_per_90", "xpts", "selected_by", "fixtures",
-                 "team", "status", "news", "risks")
-_PROJ_FIELDS = ("position", "xpts", "xpts_per_90", "expected_minutes",
-                "start_probability", "confidence")
+_OWNED_FIELDS = (
+    "price",
+    "form",
+    "xgi_per_90",
+    "xpts",
+    "selected_by",
+    "fixtures",
+    "team",
+    "status",
+    "news",
+    "risks",
+)
+_PROJ_FIELDS = (
+    "position",
+    "xpts",
+    "xpts_per_90",
+    "expected_minutes",
+    "start_probability",
+    "confidence",
+)
 _DIFF_FIELDS = ("position", "xpts", "ownership")
+_SHADOW_PROJ_FIELDS = ("position", "xpts", "expected_minutes", "start_probability")
 
 
 def _norm_name(name: str) -> str:
@@ -86,6 +105,19 @@ def _build_player_index(context: ChatContext) -> dict[str, dict]:
             if value is not None:
                 view.setdefault(f, value)
 
+    # Shadow model projections (Model D) — keyed as xpts_{model_id}
+    for model_id, shadow_rows in context.shadow_projections.items():
+        short_key = model_id.replace("v3_hist_", "xpts_")
+        for row in shadow_rows:
+            key = _norm_name(str(row.get("player", "")))
+            if not key:
+                continue
+            view = index.setdefault(
+                key, {"name": str(row.get("player")), "owned": False}
+            )
+            if "xpts" in row:
+                view[short_key] = row["xpts"]
+
     return index
 
 
@@ -103,7 +135,11 @@ def _find_players(message: str, index: dict[str, dict]) -> list[str]:
         tokens = key.split()
         if not tokens:
             continue
-        pattern = re.compile(r"(?<![a-z0-9])" + r"[\- ]*".join(re.escape(t) for t in tokens) + r"(?![a-z0-9])")
+        pattern = re.compile(
+            r"(?<![a-z0-9])"
+            + r"[\- ]*".join(re.escape(t) for t in tokens)
+            + r"(?![a-z0-9])"
+        )
         m = pattern.search(norm_msg)
         if m:
             found.append((m.start(), view["name"]))
@@ -116,19 +152,34 @@ def _has_captaincy_intent(low: str) -> bool:
 
 
 def _has_compare_intent(low: str) -> bool:
-    return any(word in low for word in ("compare", "comparison", "versus", " vs ", "better"))
+    return any(
+        word in low for word in ("compare", "comparison", "versus", " vs ", "better")
+    )
 
 
 def _has_budget_intent(low: str) -> bool:
-    return any(word in low for word in ("afford", "affordable", "cost", "bank", "price of", "budget"))
+    return any(
+        word in low
+        for word in ("afford", "affordable", "cost", "bank", "price of", "budget")
+    )
 
 
 def _has_transfer_intent(low: str) -> bool:
     return any(
         word in low
         for word in (
-            "sell", "buy", "bring in", "sign", "transfer", "swap", "replace",
-            "downgrade", "upgrade", "drop", "remove", "get rid of",
+            "sell",
+            "buy",
+            "bring in",
+            "sign",
+            "transfer",
+            "swap",
+            "replace",
+            "downgrade",
+            "upgrade",
+            "drop",
+            "remove",
+            "get rid of",
         )
     ) or bool(re.search(r"\bout\b.*\bin\b|\bin\b.*\bout\b", low))
 
@@ -136,6 +187,7 @@ def _has_transfer_intent(low: str) -> bool:
 # ---------------------------------------------------------------------------
 # Individual tools
 # ---------------------------------------------------------------------------
+
 
 def _view_to_sources(context: ChatContext, view: dict) -> list[str]:
     gw = context.gameweek or "?"
@@ -146,9 +198,13 @@ def _view_to_sources(context: ChatContext, view: dict) -> list[str]:
     if "xpts_per_90" in view:
         lines.append(f"V3 xPts/90 GW{gw}: {name} {view['xpts_per_90']}")
     if "expected_minutes" in view:
-        lines.append(f"V3 expected minutes GW{gw}: {name} {view['expected_minutes']:.0f}")
+        lines.append(
+            f"V3 expected minutes GW{gw}: {name} {view['expected_minutes']:.0f}"
+        )
     if "start_probability" in view:
-        lines.append(f"V3 start probability GW{gw}: {name} {view['start_probability']:.0%}")
+        lines.append(
+            f"V3 start probability GW{gw}: {name} {view['start_probability']:.0%}"
+        )
     if "price" in view:
         lines.append(f"FPL price: {name} {view['price']}m")
     if "fixtures" in view:
@@ -173,6 +229,8 @@ def compare_players(context: ChatContext, names: list[str]) -> ToolResult:
             "Pos": view.get("position", "-"),
             "xPts": view.get("xpts", "-"),
         }
+        if "xpts_d_team" in view:
+            row["Model D"] = view["xpts_d_team"]
         for field_, label in (
             ("xpts_per_90", "xPts/90"),
             ("expected_minutes", "Mins"),
@@ -203,8 +261,9 @@ def compare_players(context: ChatContext, names: list[str]) -> ToolResult:
     return ToolResult(name="compare_players", content=content, sources=sources)
 
 
-def evaluate_user_proposal(context: ChatContext, out_name: str, in_name: str,
-                           hits: int = 0) -> ToolResult:
+def evaluate_user_proposal(
+    context: ChatContext, out_name: str, in_name: str, hits: int = 0
+) -> ToolResult:
     """Score a user transfer proposal with exact V3 numbers.
 
     ``out`` must be owned; ``in`` may be any player with a projection. Uses
@@ -217,15 +276,15 @@ def evaluate_user_proposal(context: ChatContext, out_name: str, in_name: str,
         return ToolResult(
             name="evaluate_user_proposal",
             content=f"**{out_name}** is not in your squad, so this can't be a "
-                    "direct transfer. Choose an outgoing player from your squad.",
+            "direct transfer. Choose an outgoing player from your squad.",
             sources=[f"Squad row for {out_name} not found in this report"],
         )
     if in_ is None or in_.get("xpts") is None:
         return ToolResult(
             name="evaluate_user_proposal",
             content=f"I don't have a V3 projection for **{in_name}** in this "
-                    "report, so I can't score that move. Try a player from the "
-                    "top V3 projections.",
+            "report, so I can't score that move. Try a player from the "
+            "top V3 projections.",
             sources=[f"No V3 projection for {in_name} in this report"],
         )
 
@@ -242,6 +301,14 @@ def evaluate_user_proposal(context: ChatContext, out_name: str, in_name: str,
         f"- {in_['name']} xPts: **{in_xpts:.1f}**",
         f"- xPts change: **{delta:+.1f}**",
     ]
+    if "xpts_d_team" in out and "xpts_d_team" in in_:
+        d_out = float(out["xpts_d_team"])
+        d_in = float(in_["xpts_d_team"])
+        d_delta = d_in - d_out
+        lines.append(
+            f"- Model D: {out['name']} {d_out:.1f} -> {in_['name']} {d_in:.1f} "
+            f"(change {d_delta:+.1f})"
+        )
     if hits:
         lines.append(f"- Hit cost: **-{hit_cost}** ({hits} transfer(s) past free)")
     lines.append(f"- **Net expected gain: {net:+.1f} points**")
@@ -265,14 +332,24 @@ def evaluate_user_proposal(context: ChatContext, out_name: str, in_name: str,
         verdict = "V3 argues against this move."
     else:
         verdict = "V3 says this is roughly neutral."
+    if "xpts_d_team" in out and "xpts_d_team" in in_:
+        d_delta = float(in_["xpts_d_team"]) - float(out["xpts_d_team"])
+        if (d_delta > 0.5 and net > 0.5) or (d_delta < -0.5 and net < -0.5):
+            verdict += " Model D agrees."
+        elif (d_delta > 0.5 and net < -0.5) or (d_delta < -0.5 and net > 0.5):
+            verdict += " Model D disagrees."
     lines.append(f"\n**Verdict:** {verdict}")
 
     if "start_probability" in in_ and float(in_["start_probability"]) < 0.6:
-        lines.append(f"*Caution: {in_['name']} start probability is "
-                     f"{float(in_['start_probability']):.0%} this week.*")
+        lines.append(
+            f"*Caution: {in_['name']} start probability is "
+            f"{float(in_['start_probability']):.0%} this week.*"
+        )
 
     sources = _view_to_sources(context, out) + _view_to_sources(context, in_)
-    return ToolResult(name="evaluate_user_proposal", content="\n".join(lines), sources=sources)
+    return ToolResult(
+        name="evaluate_user_proposal", content="\n".join(lines), sources=sources
+    )
 
 
 def captaincy(context: ChatContext) -> ToolResult:
@@ -288,15 +365,13 @@ def captaincy(context: ChatContext) -> ToolResult:
         ranked = sorted(owned, key=lambda v: float(v["xpts"]), reverse=True)
         heading = "Top captain picks from your squad, by V3 xPts:"
     else:
-        ranked = [
-            v for v in index.values() if v.get("xpts")
-        ]
+        ranked = [v for v in index.values() if v.get("xpts")]
         ranked = sorted(ranked, key=lambda v: float(v["xpts"]), reverse=True)
         if not ranked:
             return ToolResult(
                 name="captaincy",
                 content="No V3 xPts projections are available in this report to "
-                        "rank captain picks.",
+                "rank captain picks.",
                 sources=["V3 xPts missing from this report"],
             )
         heading = (
@@ -306,14 +381,19 @@ def captaincy(context: ChatContext) -> ToolResult:
     lines = [
         heading,
         "",
-        "| Player | xPts | Start | Form | Fixtures |",
-        "|--------|------|-------|------|----------|",
+        "| Player | xPts | Model D | Start | Form | Fixtures |",
+        "|--------|------|---------|-------|------|----------|",
     ]
     sources: list[str] = []
     for view in ranked[:3]:
-        start = f"{float(view.get('start_probability', 0)):.0%}" if "start_probability" in view else "-"
+        start = (
+            f"{float(view.get('start_probability', 0)):.0%}"
+            if "start_probability" in view
+            else "-"
+        )
+        d_val = view.get("xpts_d_team", "-")
         lines.append(
-            f"| {view['name']} | {view['xpts']} | {start} | "
+            f"| {view['name']} | {view['xpts']} | {d_val} | {start} | "
             f"{view.get('form', '-')} | {view.get('fixtures', '-')} |"
         )
         sources.extend(_view_to_sources(context, view))
@@ -334,8 +414,8 @@ def budget_math(context: ChatContext, name: str) -> ToolResult:
         return ToolResult(
             name="budget_math",
             content=f"**{view['name']}** has a V3 projection but this report "
-                    "does not carry their price, so I can't do budget math for "
-                    "them. Prices are available for squad players.",
+            "does not carry their price, so I can't do budget math for "
+            "them. Prices are available for squad players.",
             sources=_view_to_sources(context, view),
         )
     price = float(view["price"])
@@ -351,8 +431,11 @@ def budget_math(context: ChatContext, name: str) -> ToolResult:
             f"**{context.saved_transfers}**."
         ),
     ]
-    return ToolResult(name="budget_math", content="\n".join(lines),
-                      sources=_view_to_sources(context, view))
+    return ToolResult(
+        name="budget_math",
+        content="\n".join(lines),
+        sources=_view_to_sources(context, view),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -392,8 +475,17 @@ def _parse_transfer(text: str, names: list[str]) -> tuple[str | None, str | None
         return ordered[1], ordered[0]
 
     # Verb-led phrasing: "sell X for Y" / "buy Y for X"
-    for out_verb in ("sell", "drop", "downgrade", "upgrade", "swap", "remove",
-                     "get rid of", "replace", "transfer"):
+    for out_verb in (
+        "sell",
+        "drop",
+        "downgrade",
+        "upgrade",
+        "swap",
+        "remove",
+        "get rid of",
+        "replace",
+        "transfer",
+    ):
         idx = low.find(out_verb)
         if idx >= 0:
             after = low[idx:]
@@ -425,8 +517,9 @@ def run_tools(context: ChatContext, message: str) -> ToolResult | None:
     if _has_transfer_intent(low):
         out_name, in_name = _parse_transfer(message, names)
         if out_name and in_name:
-            return evaluate_user_proposal(context, out_name, in_name,
-                                          hits=_parse_hits(low))
+            return evaluate_user_proposal(
+                context, out_name, in_name, hits=_parse_hits(low)
+            )
 
     if len(names) >= 2 and _has_compare_intent(low):
         return compare_players(context, names)

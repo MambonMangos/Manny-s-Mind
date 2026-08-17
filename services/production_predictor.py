@@ -1,8 +1,8 @@
 """Production Predictor — dispatches the primary and shadow prediction models.
 
 Version 3 (Expected Points / xPts, ledger model ``expected_points_v1``) is the
-primary production model. V1 (value-score engine layer) and V2 (ledger model
-``projection_v2``) run as *shadow / control* models.
+primary production model. V2 (ledger model ``projection_v2``) and Model D
+(V3-HIST-01, ledger model ``v3_hist_d_team``) run as *shadow / control* models.
 
 This module is the single entry point production paths use so the
 primary/shadow split is always config-driven (see ``config/production/``).
@@ -161,21 +161,24 @@ def run_production_predictions(
         if shadow_id == primary_model_id:
             logger.warning("Shadow model %s equals primary — skipping", shadow_id)
             continue
-        result.shadows.append(run_model(
-            store=store,
-            gameweek_id=gameweek_id,
-            model_id=shadow_id,
-            session=session,
-            persist=persist,
-            current_squad=current_squad,
-            budget_remaining=budget_remaining,
-        ))
+        result.shadows.append(
+            run_model(
+                store=store,
+                gameweek_id=gameweek_id,
+                model_id=shadow_id,
+                session=session,
+                persist=persist,
+                current_squad=current_squad,
+                budget_remaining=budget_remaining,
+            )
+        )
 
     result.persisted = persist and result.primary.version_id is not None
     logger.info(
         "Production predictions gw=%d: primary=%s (%d projections), "
         "%d shadow run(s) → %s",
-        gameweek_id, primary_model_id,
+        gameweek_id,
+        primary_model_id,
         len(result.primary.projections),
         len(result.shadows),
         [s.model_id for s in result.shadows],
@@ -203,16 +206,30 @@ def run_model(
     """
     if model_id == "expected_points_v1":
         return _run_expected_points(
-            store, gameweek_id, session=session, persist=persist,
+            store,
+            gameweek_id,
+            session=session,
+            persist=persist,
         )
     if model_id == "projection_v2":
         return _run_projection_v2(
-            store, gameweek_id, session=session, persist=persist,
-            current_squad=current_squad, budget_remaining=budget_remaining,
+            store,
+            gameweek_id,
+            session=session,
+            persist=persist,
+            current_squad=current_squad,
+            budget_remaining=budget_remaining,
+        )
+    if model_id == "v3_hist_d_team":
+        return _run_v3_hist_d_team(
+            store,
+            gameweek_id,
+            session=session,
+            persist=persist,
         )
     raise ValueError(
         f"Unsupported production model id: {model_id!r} "
-        "(expected 'expected_points_v1' or 'projection_v2')"
+        "(expected 'expected_points_v1', 'projection_v2', or 'v3_hist_d_team')"
     )
 
 
@@ -227,7 +244,10 @@ def _run_expected_points(store, gameweek_id, session, persist) -> ModelRun:
             from services.expected_pipeline import persist_expected_version
 
             version_id = persist_expected_version(
-                session, store, projections, gameweek_id,
+                session,
+                store,
+                projections,
+                gameweek_id,
             )
             session.commit()
         return ModelRun(
@@ -268,3 +288,36 @@ def _run_projection_v2(
     except Exception as exc:  # noqa: BLE001 - a failed shadow must not crash the app
         logger.warning("V2 shadow pipeline failed: %s", exc)
         return ModelRun(model_id="projection_v2", error=str(exc))
+
+
+def _run_v3_hist_d_team(store, gameweek_id, session, persist) -> ModelRun:
+    """Run Model D (V3 + hist features) as a shadow model and optionally persist it."""
+    from engines.expected_projection_engine import run_expected_projection
+
+    try:
+        projections = run_expected_projection(
+            store,
+            gameweek_id,
+            points_version="expected_points_v1_hist",
+            minutes_version="expected_minutes_v1_hist",
+        )
+        version_id = None
+        if persist and session is not None:
+            from services.expected_pipeline import persist_expected_version
+
+            version_id = persist_expected_version(
+                session,
+                store,
+                projections,
+                gameweek_id,
+                model_name="v3_hist_d_team",
+            )
+            session.commit()
+        return ModelRun(
+            model_id="v3_hist_d_team",
+            projections=projections,
+            version_id=version_id,
+        )
+    except Exception as exc:  # noqa: BLE001 - a failed shadow must not crash the app
+        logger.warning("V3 hist D-team shadow failed: %s", exc)
+        return ModelRun(model_id="v3_hist_d_team", error=str(exc))

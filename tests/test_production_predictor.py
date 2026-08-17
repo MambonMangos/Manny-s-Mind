@@ -75,8 +75,10 @@ def test_production_config_primary_is_v3():
 
 
 def test_production_config_shadow_is_v2():
-    """V2 is configured as the shadow/control model."""
-    assert get_shadow_model_ids() == ["projection_v2"]
+    """V2 and Model D are configured as shadow/control models."""
+    shadows = get_shadow_model_ids()
+    assert "projection_v2" in shadows
+    assert "v3_hist_d_team" in shadows
 
 
 def test_production_config_loadable():

@@ -127,7 +127,10 @@ def run_expected_points_comparison(
     # 4. Persist the V3 version (idempotent, append-only)
     if persist and session is not None:
         expected_version_id = persist_expected_version(
-            session, store, expected_projections, gameweek_id,
+            session,
+            store,
+            expected_projections,
+            gameweek_id,
         )
         result.expected_version_id = expected_version_id
         result.persisted = True
@@ -144,14 +147,25 @@ def persist_expected_version(
     store,
     expected_projections: list[ExpectedPlayerProjection],
     gameweek_id: int,
+    *,
+    model_name: str = "expected_points_v1",
 ) -> int:
     """Persist the V3 forecast as an append-only prediction version.
 
     Idempotent: if a version with the same tag already exists, its id is
     returned and nothing is written. Public entry point used by the production
     predictor so all V3 persistence flows through one code path.
+
+    ``model_name`` allows shadow models (e.g. ``v3_hist_d_team``) to persist
+    under their own ledger name while reusing the same projection format.
     """
-    return _persist_expected_version(session, store, expected_projections, gameweek_id)
+    return _persist_expected_version(
+        session,
+        store,
+        expected_projections,
+        gameweek_id,
+        model_name=model_name,
+    )
 
 
 def compare_expected_vs_baseline(
@@ -180,11 +194,14 @@ def compare_expected_vs_baseline(
 # Internal helpers
 # ------------------------------------------------------------------
 
+
 def _persist_expected_version(
     session,
     store,
     expected_projections: list[ExpectedPlayerProjection],
     gameweek_id: int,
+    *,
+    model_name: str = "expected_points_v1",
 ) -> int:
     """Persist the V3 forecast as its own append-only prediction version."""
     from database.crud import get_prediction_version_by_tag
@@ -195,16 +212,20 @@ def _persist_expected_version(
 
     existing = get_prediction_version_by_tag(session, version_tag)
     if existing is not None:
-        logger.info("Expected version %s already exists (id=%d), skipping", version_tag, existing.id)
+        logger.info(
+            "Expected version %s already exists (id=%d), skipping",
+            version_tag,
+            existing.id,
+        )
         return existing.id
 
     version_id = persist_predictions_only(
         session=session,
         version_tag=version_tag,
-        model_name="expected_points_v1",
+        model_name=model_name,
         gameweek_id=gameweek_id,
         projections=expected_projections,
         config_hash=config_hash,
-        notes=f"V3 expected points projection (xPts/90 x minutes/90) for gw={gameweek_id}",
+        notes=f"V3 expected points projection ({model_name}) for gw={gameweek_id}",
     )
     return version_id

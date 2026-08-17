@@ -25,3 +25,4 @@ primary_model: expected_points_v1
 
 shadow_models:
   - projection_v2
+  - v3_hist_d_team

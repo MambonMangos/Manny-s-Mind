@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ChatContext:
     """Structured, model-ready context for one chat turn."""
+
     team_id: int
     team_name: str = ""
     gameweek: int | None = None
@@ -36,6 +37,7 @@ class ChatContext:
     top_differentials: list[dict] = field(default_factory=list)
     fixtures: list[str] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
+    shadow_projections: dict[str, list[dict]] = field(default_factory=dict)
 
     def is_empty(self) -> bool:
         return not self.squad and not self.top_projections
@@ -76,7 +78,9 @@ def _squad_row(player) -> dict:
 
 def _projection_row(proj) -> dict:
     """One compact context row for a V3 projection."""
-    factors = proj.contributing_factors if isinstance(proj.contributing_factors, dict) else {}
+    factors = (
+        proj.contributing_factors if isinstance(proj.contributing_factors, dict) else {}
+    )
     start_prob = factors.get("start_probability", 0.0)
     row: dict[str, Any] = {
         "player": proj.web_name,
@@ -86,6 +90,23 @@ def _projection_row(proj) -> dict:
         "expected_minutes": round(float(proj.expected_minutes), 0),
         "start_probability": round(float(start_prob or 0.0), 2),
         "confidence": round(float(proj.confidence), 0),
+    }
+    return row
+
+
+def _shadow_projection_row(proj, model_id: str) -> dict:
+    """One compact context row for a shadow model projection."""
+    factors = (
+        proj.contributing_factors if isinstance(proj.contributing_factors, dict) else {}
+    )
+    start_prob = factors.get("start_probability", 0.0)
+    row: dict[str, Any] = {
+        "player": proj.web_name,
+        "position": proj.position,
+        "xpts": round(float(proj.projected_points), 1),
+        "expected_minutes": round(float(proj.expected_minutes), 0),
+        "start_probability": round(float(start_prob or 0.0), 2),
+        "model": model_id,
     }
     return row
 
@@ -123,6 +144,15 @@ def build_chat_context(
         for proj in projections[:top_projections]:
             context.top_projections.append(_projection_row(proj))
 
+    # Shadow model projections (Model D and others)
+    if production is not None:
+        for shadow in production.shadows:
+            if shadow.ok and shadow.projections:
+                shadow_rows = []
+                for proj in shadow.projections:
+                    shadow_rows.append(_shadow_projection_row(proj, shadow.model_id))
+                context.shadow_projections[shadow.model_id] = shadow_rows
+
     league = report.league_intelligence
     if league is not None:
         diffs = sorted(
@@ -153,7 +183,9 @@ def _build_sources(context: ChatContext) -> tuple[list[str], list[str]]:
     fixture_lines = []
     sources = []
     if context.gameweek:
-        fixture_lines.append(f"V3 projections and context are for GW{context.gameweek}.")
+        fixture_lines.append(
+            f"V3 projections and context are for GW{context.gameweek}."
+        )
 
     for row in context.squad:
         sources.append(
@@ -212,5 +244,13 @@ def render_context(context: ChatContext) -> str:
     if context.top_differentials:
         section("League differentials (V3)")
         kv(context.top_differentials)
+
+    for model_id, shadow_rows in context.shadow_projections.items():
+        if shadow_rows:
+            label = {
+                "v3_hist_d_team": "Model D (V3-HIST-01) projections",
+            }.get(model_id, f"{model_id} projections")
+            section(label)
+            kv(shadow_rows)
 
     return "\n".join(lines)
