@@ -64,8 +64,10 @@ def _season_player_prior(season: str) -> pd.DataFrame:
 
     Indexed by FPL ``code``. Columns:
       prev_minutes, prev_points, prev_starts, prev_games, prev_goals,
-      prev_assists, prev_xg, prev_xa, prev_xg_per_90, prev_xa_per_90,
-      prev_points_per_90, prev_starts_rate, prev_position, prev_team.
+      prev_assists, prev_bps, prev_bonus, prev_xg, prev_xa,
+      prev_xg_per_90, prev_xa_per_90, prev_xgi_per_90, prev_points_per_90,
+      prev_bps_per_90, prev_bonus_per_90, prev_starts_rate,
+      prev_position, prev_team.
     """
     sd = SeasonData.load(season)
     gw = sd.gw
@@ -77,6 +79,8 @@ def _season_player_prior(season: str) -> pd.DataFrame:
         "prev_games": ("element", "count"),
         "prev_goals": ("goals_scored", "sum"),
         "prev_assists": ("assists", "sum"),
+        "prev_bps": ("bps", "sum"),
+        "prev_bonus": ("bonus", "sum"),
     }
     if config.STARTS_COL in gw.columns:
         agg["prev_starts"] = (config.STARTS_COL, "sum")
@@ -91,9 +95,7 @@ def _season_player_prior(season: str) -> pd.DataFrame:
     if raw is not None:
         ident = raw.set_index("element")
         prior["code"] = pd.to_numeric(ident["code"], errors="coerce")
-        prior["prev_position"] = (
-            ident["element_type"].map(config.POSITION_MAP)
-        )
+        prior["prev_position"] = ident["element_type"].map(config.POSITION_MAP)
         prior["prev_team"] = pd.to_numeric(ident["team"], errors="coerce")
         prior = prior.dropna(subset=["code"])
         prior["code"] = prior["code"].astype(int)
@@ -103,16 +105,41 @@ def _season_player_prior(season: str) -> pd.DataFrame:
     prior["prev_xa"] = prior.get("prev_xa", 0.0)
 
     prior["prev_xg_per_90"] = (
-        prior["prev_xg"] / (prior["prev_minutes"] / 90)
-    ).fillna(0.0).replace([float("inf"), float("-inf")], 0.0)
+        (prior["prev_xg"] / (prior["prev_minutes"] / 90))
+        .fillna(0.0)
+        .replace([float("inf"), float("-inf")], 0.0)
+    )
     prior["prev_xa_per_90"] = (
-        prior["prev_xa"] / (prior["prev_minutes"] / 90)
-    ).fillna(0.0).replace([float("inf"), float("-inf")], 0.0)
+        (prior["prev_xa"] / (prior["prev_minutes"] / 90))
+        .fillna(0.0)
+        .replace([float("inf"), float("-inf")], 0.0)
+    )
     prior["prev_points_per_90"] = (
-        prior["prev_points"] / (prior["prev_minutes"] / 90)
-    ).fillna(0.0).replace([float("inf"), float("-inf")], 0.0)
+        (prior["prev_points"] / (prior["prev_minutes"] / 90))
+        .fillna(0.0)
+        .replace([float("inf"), float("-inf")], 0.0)
+    )
+    prior["prev_bps_per_90"] = (
+        (prior["prev_bps"] / (prior["prev_minutes"] / 90))
+        .fillna(0.0)
+        .replace([float("inf"), float("-inf")], 0.0)
+    )
+    prior["prev_bonus_per_90"] = (
+        (prior["prev_bonus"] / (prior["prev_minutes"] / 90))
+        .fillna(0.0)
+        .replace([float("inf"), float("-inf")], 0.0)
+    )
+    prior["prev_xgi_per_90"] = (
+        (
+            (prior.get("prev_xg", 0.0) + prior.get("prev_xa", 0.0))
+            / (prior["prev_minutes"] / 90)
+        )
+        .fillna(0.0)
+        .replace([float("inf"), float("-inf")], 0.0)
+    )
     prior["prev_starts_rate"] = np_safe_divide(
-        prior["prev_starts"], prior["prev_games"],
+        prior["prev_starts"],
+        prior["prev_games"],
     )
     prior["prev_minutes_per_90"] = prior["prev_minutes"] / 90.0
 
@@ -143,6 +170,7 @@ def previous_season_prior(target_season: str) -> pd.DataFrame:
     try:
         return _season_player_prior(prev)
     except AssertionError as exc:
-        logger.warning("cannot build prev-season prior for %s -> %s: %s",
-                       target_season, prev, exc)
+        logger.warning(
+            "cannot build prev-season prior for %s -> %s: %s", target_season, prev, exc
+        )
         return pd.DataFrame()

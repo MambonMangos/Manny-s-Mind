@@ -27,6 +27,22 @@ def test_previous_season_prior_leakage_safe():
     assert "prev_position" in prior.columns
 
 
+def test_previous_season_prior_rate_columns():
+    """Evidence-layer consumers need prev BPS/bonus/xGI rates."""
+    prior = previous_season_prior("2023-24")
+    for col in ["prev_bps_per_90", "prev_bonus_per_90", "prev_xgi_per_90"]:
+        assert col in prior.columns, f"missing {col}"
+        assert prior[col].notna().all(), f"NaN in {col}"
+    assert (
+        prior["prev_xgi_per_90"]
+        .abs()
+        .le(
+            prior["prev_xg_per_90"].abs() + prior["prev_xa_per_90"].abs() + 1e-6,
+        )
+        .all()
+    )
+
+
 def test_previous_season_prior_none_for_first_season():
     assert previous_season_prior("2016-17").empty
 
@@ -46,7 +62,9 @@ def test_player_codes_stable_identity():
     # Verified-stable FPL codes (Salah=118748, Saka=223340).
     for code in [118748, 223340]:
         elems = {element_for(s, code) for s in ["2022-23", "2023-24", "2024-25"]}
-        assert len(elems) >= 2, f"code {code} should map to (season-dependent) elements across seasons"
+        assert len(elems) >= 2, (
+            f"code {code} should map to (season-dependent) elements across seasons"
+        )
     assert element_for("2023-24", 118748) != element_for("2024-25", 118748)
 
 

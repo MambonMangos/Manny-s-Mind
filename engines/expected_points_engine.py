@@ -128,27 +128,51 @@ def project_expected_points(
         if creative:
             xa_90 *= float(creative.get(position, 1.0) or 1.0)
 
-        # Previous-season shrinkage for tiny current-season samples.
-        prev_blend = empirical.get("prev_season", {}) if empirical else {}
-        if prev_blend and games_played < int(prev_blend.get("min_current_games", 3)):
-            prev_w = float(prev_blend.get("prev_weight", 0.0) or 0.0)
-            prev_xg = float(row.get("hist_prev_xg_per_90", 0) or 0)
-            prev_xa = float(row.get("hist_prev_xa_per_90", 0) or 0)
-            xg_90 = (1 - prev_w) * xg_90 + prev_w * prev_xg
-            xa_90 = (1 - prev_w) * xa_90 + prev_w * prev_xa
+        # Evidence layer (research/evidence.py): blended current-vs-historical
+        # rates + team multipliers. Active only when the ev_* columns are
+        # present (research backtest injects them deliberately; production never
+        # does). Replaces the fixed prev_season shrinkage and historical_team
+        # blocks below, which are kept for the non-evidence experimental path.
+        ev_xg = float(row.get("ev_xg_per_90", np.nan))
+        ev_xa = float(row.get("ev_xa_per_90", np.nan))
+        evidence_active = np.isfinite(ev_xg) and np.isfinite(ev_xa)
+        if evidence_active:
+            xg_90 = ev_xg
+            xa_90 = ev_xa
+            atk_mult = float(row.get("ev_team_attack_mult", np.nan))
+            if np.isfinite(atk_mult):
+                xg_90 *= atk_mult
+                xa_90 *= atk_mult
+            def_mult = float(row.get("ev_team_defense_mult", np.nan))
+            if np.isfinite(def_mult):
+                xgc_90 *= def_mult
+        else:
+            # Previous-season shrinkage for tiny current-season samples.
+            prev_blend = empirical.get("prev_season", {}) if empirical else {}
+            if prev_blend and games_played < int(
+                prev_blend.get("min_current_games", 3)
+            ):
+                prev_w = float(prev_blend.get("prev_weight", 0.0) or 0.0)
+                prev_xg = float(row.get("hist_prev_xg_per_90", 0) or 0)
+                prev_xa = float(row.get("hist_prev_xa_per_90", 0) or 0)
+                xg_90 = (1 - prev_w) * xg_90 + prev_w * prev_xg
+                xa_90 = (1 - prev_w) * xa_90 + prev_w * prev_xa
 
-        # Empirical team-strength adjustment (active only with hist_team_* cols).
-        team_adj = empirical.get("historical_team", {}) if empirical else {}
-        if team_adj:
-            attack_adj = float(row.get("hist_team_attack_adj", 1.0) or 1.0)
-            defense_adj = float(row.get("hist_team_defense_adj", 1.0) or 1.0)
-            a_w = float(team_adj.get("attack_weight", 0.0) or 0.0)
-            d_w = float(team_adj.get("defense_weight", 0.0) or 0.0)
-            xg_90 *= 1 - a_w + a_w * attack_adj
-            xa_90 *= 1 - a_w + a_w * attack_adj
-            xgc_90 *= 1 - d_w + d_w * defense_adj
+            # Empirical team-strength adjustment (active only with hist_team_* cols).
+            team_adj = empirical.get("historical_team", {}) if empirical else {}
+            if team_adj:
+                attack_adj = float(row.get("hist_team_attack_adj", 1.0) or 1.0)
+                defense_adj = float(row.get("hist_team_defense_adj", 1.0) or 1.0)
+                a_w = float(team_adj.get("attack_weight", 0.0) or 0.0)
+                d_w = float(team_adj.get("defense_weight", 0.0) or 0.0)
+                xg_90 *= 1 - a_w + a_w * attack_adj
+                xa_90 *= 1 - a_w + a_w * attack_adj
+                xgc_90 *= 1 - d_w + d_w * defense_adj
 
-        xgc_90 = _team_strength_adjust(xgc_90, row, cs_cfg)
+        # Production team-strength anchor adjustment. Skipped in evidence mode:
+        # the evidence team multiplier already adjusts xGC from team strength.
+        if not evidence_active:
+            xgc_90 = _team_strength_adjust(xgc_90, row, cs_cfg)
 
         # Clean-sheet probability (GKP/DEF only)
         if position in ("GKP", "DEF"):
@@ -157,7 +181,11 @@ def project_expected_points(
             clean_sheet_prob = 0.0
 
         # Auxiliary point sources
-        bps_per_90 = _per_90(float(row.get("bps", 0) or 0), games_played)
+        ev_bps = float(row.get("ev_bps_per_90", np.nan))
+        if np.isfinite(ev_bps):
+            bps_per_90 = ev_bps
+        else:
+            bps_per_90 = _per_90(float(row.get("bps", 0) or 0), games_played)
         expected_bonus = _expected_bonus(bps_per_90, bonus_cfg, empirical, position)
 
         saves_per_90 = _per_90(float(row.get("saves", 0) or 0), games_played)
@@ -166,7 +194,9 @@ def project_expected_points(
         yellow_per_90 = _per_90(float(row.get("yellow_cards", 0) or 0), games_played)
         red_per_90 = _per_90(float(row.get("red_cards", 0) or 0), games_played)
         expected_cards = _expected_cards(
-            yellow_per_90, red_per_90, cards_cfg,
+            yellow_per_90,
+            red_per_90,
+            cards_cfg,
         )
 
         set_piece_bonus = _set_piece_bonus(set_pieces, idx, set_piece_cfg)
@@ -190,34 +220,36 @@ def project_expected_points(
         data_quality, n_sources = _assess_data_quality(row, xgi, idx)
         confidence = _data_quality_confidence(data_quality, confidence_cfg)
 
-        projections.append(ExpectedPointsProjection(
-            player_id=player_id,
-            web_name=web_name,
-            position=position,
-            team_id=team_id,
-            xpts_per_90=round(xpts_per_90, 3),
-            xg_90=round(xg_90, 3),
-            xa_90=round(xa_90, 3),
-            xgc_90=round(xgc_90, 3),
-            clean_sheet_prob=round(clean_sheet_prob, 3),
-            expected_bonus=round(expected_bonus, 3),
-            expected_saves=round(expected_saves, 3),
-            expected_cards=round(expected_cards, 3),
-            set_piece_bonus=round(set_piece_bonus, 3),
-            fixture_multiplier=round(fixture_multiplier, 3),
-            confidence=round(confidence, 1),
-            data_quality=data_quality,
-            games_played=games_played,
-            contributing_factors={
-                "gameweek_id": gameweek_id,
-                "xg_90": round(xg_90, 3),
-                "xa_90": round(xa_90, 3),
-                "clean_sheet_prob": round(clean_sheet_prob, 3),
-                "fixture_multiplier": round(fixture_multiplier, 3),
-                "set_piece_bonus": round(set_piece_bonus, 3),
-                "data_sources": n_sources,
-            },
-        ))
+        projections.append(
+            ExpectedPointsProjection(
+                player_id=player_id,
+                web_name=web_name,
+                position=position,
+                team_id=team_id,
+                xpts_per_90=round(xpts_per_90, 3),
+                xg_90=round(xg_90, 3),
+                xa_90=round(xa_90, 3),
+                xgc_90=round(xgc_90, 3),
+                clean_sheet_prob=round(clean_sheet_prob, 3),
+                expected_bonus=round(expected_bonus, 3),
+                expected_saves=round(expected_saves, 3),
+                expected_cards=round(expected_cards, 3),
+                set_piece_bonus=round(set_piece_bonus, 3),
+                fixture_multiplier=round(fixture_multiplier, 3),
+                confidence=round(confidence, 1),
+                data_quality=data_quality,
+                games_played=games_played,
+                contributing_factors={
+                    "gameweek_id": gameweek_id,
+                    "xg_90": round(xg_90, 3),
+                    "xa_90": round(xa_90, 3),
+                    "clean_sheet_prob": round(clean_sheet_prob, 3),
+                    "fixture_multiplier": round(fixture_multiplier, 3),
+                    "set_piece_bonus": round(set_piece_bonus, 3),
+                    "data_sources": n_sources,
+                },
+            )
+        )
 
     projections.sort(key=lambda p: p.player_id)
     return projections
@@ -241,6 +273,7 @@ def compute_expected_points_version_tag(
 # ------------------------------------------------------------------
 # Internal helpers
 # ------------------------------------------------------------------
+
 
 def _col(features_df: pd.DataFrame, idx, name: str) -> float:
     """Safely read a column value from a feature DataFrame by index."""
@@ -291,7 +324,9 @@ def _team_strength_adjust(xgc_90: float, row: pd.Series, cs_cfg: dict) -> float:
     return xgc_90 * (anchor / team_strength)
 
 
-def _clean_sheet_prob(xgc_90: float, cs_cfg: dict, empirical: dict | None = None) -> float:
+def _clean_sheet_prob(
+    xgc_90: float, cs_cfg: dict, empirical: dict | None = None
+) -> float:
     """Estimate clean-sheet probability from xGC/90.
 
     Empirical (historical) model, when configured:
@@ -304,7 +339,10 @@ def _clean_sheet_prob(xgc_90: float, cs_cfg: dict, empirical: dict | None = None
     if cs_emp:
         model = cs_emp.get("GKP", cs_emp.get("DEF")) or {}
         if model:
-            prob = float(model.get("intercept", 0.0) or 0.0) + float(model.get("slope", 0.0) or 0.0) * xgc_90
+            prob = (
+                float(model.get("intercept", 0.0) or 0.0)
+                + float(model.get("slope", 0.0) or 0.0) * xgc_90
+            )
             return float(np.clip(prob, min_prob, max_prob))
 
     league_avg = float(cs_cfg.get("league_avg_xgc_per_90", 1.4) or 1.4)
@@ -332,7 +370,10 @@ def _expected_bonus(
     if position and bonus_emp:
         model = bonus_emp.get(position) or {}
         if model and "slope" in model:
-            prob = float(model.get("intercept", 0.0) or 0.0) + float(model.get("slope", 0.0) or 0.0) * bps_per_90
+            prob = (
+                float(model.get("intercept", 0.0) or 0.0)
+                + float(model.get("slope", 0.0) or 0.0) * bps_per_90
+            )
             return float(np.clip(prob, 0.0, cap))
 
     divisor = float(bonus_cfg.get("bps_per_bonus_point", 160) or 160)
@@ -413,8 +454,32 @@ def _data_quality_confidence(data_quality: str, confidence_cfg: dict) -> float:
 
 def _default_position_values() -> dict:
     return {
-        "GKP": {"goal": 10, "assist": 3, "clean_sheet": 1, "yellow_card": -1, "red_card": -3},
-        "DEF": {"goal": 6, "assist": 3, "clean_sheet": 4, "yellow_card": -1, "red_card": -3},
-        "MID": {"goal": 5, "assist": 3, "clean_sheet": 1, "yellow_card": -1, "red_card": -3},
-        "FWD": {"goal": 4, "assist": 3, "clean_sheet": 0, "yellow_card": -1, "red_card": -3},
+        "GKP": {
+            "goal": 10,
+            "assist": 3,
+            "clean_sheet": 1,
+            "yellow_card": -1,
+            "red_card": -3,
+        },
+        "DEF": {
+            "goal": 6,
+            "assist": 3,
+            "clean_sheet": 4,
+            "yellow_card": -1,
+            "red_card": -3,
+        },
+        "MID": {
+            "goal": 5,
+            "assist": 3,
+            "clean_sheet": 1,
+            "yellow_card": -1,
+            "red_card": -3,
+        },
+        "FWD": {
+            "goal": 4,
+            "assist": 3,
+            "clean_sheet": 0,
+            "yellow_card": -1,
+            "red_card": -3,
+        },
     }

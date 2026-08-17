@@ -22,7 +22,9 @@ from research.state import build_state
 logger = logging.getLogger(__name__)
 
 
-def _capture_features(store, sd: SeasonData, gw_n: int, out: pd.DataFrame) -> pd.DataFrame:
+def _capture_features(
+    store, sd: SeasonData, gw_n: int, out: pd.DataFrame
+) -> pd.DataFrame:
     """Capture the full Feature Store matrix for a gameweek (leakage-safe)."""
     import pandas as pd
 
@@ -45,21 +47,52 @@ def _capture_features(store, sd: SeasonData, gw_n: int, out: pd.DataFrame) -> pd
     feat["season"] = sd.season
     feat["round"] = gw_n
 
-    raw_cols = ["web_name", "position", "team_id", "price", "minutes", "starts",
-                "goals_scored", "assists", "total_points", "bonus", "bps",
-                "influence", "creativity", "threat", "ict_index", "form",
-                "event_points", "clean_sheets", "yellow_cards", "red_cards",
-                "saves"]
+    raw_cols = [
+        "web_name",
+        "position",
+        "team_id",
+        "price",
+        "minutes",
+        "starts",
+        "goals_scored",
+        "assists",
+        "total_points",
+        "bonus",
+        "bps",
+        "influence",
+        "creativity",
+        "threat",
+        "ict_index",
+        "form",
+        "event_points",
+        "clean_sheets",
+        "yellow_cards",
+        "red_cards",
+        "saves",
+    ]
     for c in raw_cols:
         if c in store.df.columns:
             feat["raw_" + c] = store.df[c].values
 
     feat = feat.merge(
-        out[["player_id", "actual_points", "actual_minutes", "actual_starts",
-             "data_quality", "data_quality_minutes", "predicted_points",
-             "expected_minutes", "xpts_per_90", "start_probability",
-             "minutes_if_starting", "substitution_risk"]],
-        on="player_id", how="left",
+        out[
+            [
+                "player_id",
+                "actual_points",
+                "actual_minutes",
+                "actual_starts",
+                "data_quality",
+                "data_quality_minutes",
+                "predicted_points",
+                "expected_minutes",
+                "xpts_per_90",
+                "start_probability",
+                "minutes_if_starting",
+                "substitution_risk",
+            ]
+        ],
+        on="player_id",
+        how="left",
     )
     return feat
 
@@ -71,6 +104,8 @@ def predict_gameweek(
     points_version: str | None = None,
     minutes_version: str | None = None,
     hist_features: tuple[str, ...] = (),
+    evidence_version: str | None = None,
+    evidence_cfg: dict | None = None,
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame]:
     """Build the pre-gw_n state, run V3 engines, return predictions + actuals.
 
@@ -78,6 +113,10 @@ def predict_gameweek(
     for the two engines (None = active/production configs). ``hist_features``
     injects ``hist_*`` columns (player/team/prev) from the historical feature
     store before the engines run — leakage-safe (rounds < gw_n only).
+    ``evidence_version`` additionally injects ``ev_*`` columns from the
+    evidence layer (current-season evidence weights), which the engines consume
+    only when present. ``evidence_cfg`` overrides the evidence parameters in
+    memory (parameter grid); None loads ``evidence_version`` from disk.
 
     If ``with_features`` is True, returns ``(out, features)`` where features is
     the full Feature Store matrix for the gameweek.
@@ -89,7 +128,19 @@ def predict_gameweek(
 
     players_df, fixture_map, team_name_map = build_state(sd, gw_n)
     if hist_features:
-        players_df = add_historical_features(players_df, sd, gw_n, include=hist_features)
+        players_df = add_historical_features(
+            players_df, sd, gw_n, include=hist_features
+        )
+    if evidence_version:
+        from research.evidence import add_evidence_features
+
+        players_df = add_evidence_features(
+            players_df,
+            sd,
+            gw_n,
+            evidence_version=evidence_version,
+            cfg=evidence_cfg,
+        )
     store = build_feature_store(
         players_df=players_df,
         fixture_map=fixture_map,
@@ -104,15 +155,25 @@ def predict_gameweek(
     mins_df = pd.DataFrame([vars(p) for p in mins])
 
     out = xp_df.merge(
-        mins_df[["player_id", "expected_minutes", "start_probability",
-                 "minutes_if_starting", "substitution_risk",
-                 "sub_rate_given_not_start"]],
-        on="player_id", how="left",
+        mins_df[
+            [
+                "player_id",
+                "expected_minutes",
+                "start_probability",
+                "minutes_if_starting",
+                "substitution_risk",
+                "sub_rate_given_not_start",
+            ]
+        ],
+        on="player_id",
+        how="left",
     )
     out = out.merge(
         mins_df[["player_id", "data_quality"]].rename(
-            columns={"data_quality": "data_quality_minutes"}),
-        on="player_id", how="left",
+            columns={"data_quality": "data_quality_minutes"}
+        ),
+        on="player_id",
+        how="left",
     )
     out["predicted_points"] = out["xpts_per_90"] * out["expected_minutes"] / 90.0
     out["predicted_points"] = out["predicted_points"].fillna(0.0)
@@ -122,7 +183,9 @@ def predict_gameweek(
     # --- actuals for round gw_n ----------------------------------------------
     act = sd.gw[sd.gw["round"] == gw_n]
     if not act.empty:
-        act_cols = [c for c in ["total_points", "minutes", "starts"] if c in act.columns]
+        act_cols = [
+            c for c in ["total_points", "minutes", "starts"] if c in act.columns
+        ]
         act = act.groupby("element")[act_cols].sum()
         rename = {
             "total_points": "actual_points",
@@ -131,7 +194,9 @@ def predict_gameweek(
         }
         out = out.merge(
             act.rename(columns=rename),
-            left_on="player_id", right_index=True, how="left",
+            left_on="player_id",
+            right_index=True,
+            how="left",
         )
         for col in ["actual_points", "actual_minutes", "actual_starts"]:
             if col not in out.columns:
@@ -157,16 +222,21 @@ def run_season_backtest(
     points_version: str | None = None,
     minutes_version: str | None = None,
     hist_features: tuple[str, ...] = (),
+    evidence_version: str | None = None,
+    evidence_cfg: dict | None = None,
     tag: str | None = None,
 ) -> pd.DataFrame:
     """Run a V3 backtest over every playable round in a season.
 
     Extra parameters (``points_version``, ``minutes_version``,
-    ``hist_features``) enable experimental model variants; ``tag`` names the
-    output file so different models do not overwrite each other.
+    ``hist_features``, ``evidence_version``, ``evidence_cfg``) enable
+    experimental model variants; ``tag`` names the output file so different
+    models do not overwrite each other.
     """
     sd = SeasonData.load(season, use_cache=use_cache)
-    rounds = [r for r in sd.rounds if r >= first_gw and (last_gw is None or r <= last_gw)]
+    rounds = [
+        r for r in sd.rounds if r >= first_gw and (last_gw is None or r <= last_gw)
+    ]
     if not rounds:
         return pd.DataFrame()
 
@@ -174,9 +244,14 @@ def run_season_backtest(
     feature_frames = []
     for r in rounds:
         result = predict_gameweek(
-            sd, r, with_features=with_features,
-            points_version=points_version, minutes_version=minutes_version,
+            sd,
+            r,
+            with_features=with_features,
+            points_version=points_version,
+            minutes_version=minutes_version,
             hist_features=hist_features,
+            evidence_version=evidence_version,
+            evidence_cfg=evidence_cfg,
         )
         if with_features:
             df, feats = result
@@ -202,6 +277,7 @@ def run_backtest(
     points_version: str | None = None,
     minutes_version: str | None = None,
     hist_features: tuple[str, ...] = (),
+    evidence_version: str | None = None,
     tag: str = "baseline",
 ) -> pd.DataFrame:
     """Run the backtest over the configured seasons; cache result CSV.
@@ -214,14 +290,23 @@ def run_backtest(
     all_frames = []
     for season in seasons:
         df = run_season_backtest(
-            season, use_cache=use_cache, with_features=with_features,
-            points_version=points_version, minutes_version=minutes_version,
+            season,
+            use_cache=use_cache,
+            with_features=with_features,
+            points_version=points_version,
+            minutes_version=minutes_version,
             hist_features=hist_features,
+            evidence_version=evidence_version,
         )
         all_frames.append(df)
     res = pd.concat(all_frames, ignore_index=True)
-    out_name = "v3_baseline_predictions.csv" if tag == "baseline" else f"v3_{tag}_predictions.csv"
+    out_name = (
+        "v3_baseline_predictions.csv"
+        if tag == "baseline"
+        else f"v3_{tag}_predictions.csv"
+    )
     res.to_csv(config.RESULTS_DIR / out_name, index=False)
-    logger.info("wrote %d prediction rows to %s",
-                len(res), config.RESULTS_DIR / out_name)
+    logger.info(
+        "wrote %d prediction rows to %s", len(res), config.RESULTS_DIR / out_name
+    )
     return res

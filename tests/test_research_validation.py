@@ -24,11 +24,20 @@ def test_folds_chronological_and_non_overlapping():
 
 
 def test_models_definition():
-    expected = {"A_baseline", "B_points_hist", "C_minutes_hist", "D_team", "F_full"}
+    expected = {
+        "A_baseline",
+        "B_points_hist",
+        "C_minutes_hist",
+        "D_team",
+        "F_full",
+        "G_evidence",
+    }
     assert set(MODELS) == expected
     assert MODELS["A_baseline"]["points_version"] is None
     assert MODELS["B_points_hist"]["hist_features"] == ()
     assert MODELS["D_team"]["hist_features"] == ("player", "team")
+    assert MODELS["G_evidence"]["evidence_version"] == "evidence_v1"
+    assert MODELS["G_evidence"]["hist_features"] == ("player",)
 
 
 @pytest.fixture(scope="module")
@@ -39,9 +48,15 @@ def fold1_out():
 def test_run_fold_cached(fold1_out):
     df = fold1_out["A_baseline"]
     assert len(df) > 20000
-    for col in ["predicted_points", "actual_points", "expected_minutes",
-                "actual_minutes", "actual_starts", "start_probability",
-                "sub_rate_given_not_start"]:
+    for col in [
+        "predicted_points",
+        "actual_points",
+        "expected_minutes",
+        "actual_minutes",
+        "actual_starts",
+        "start_probability",
+        "sub_rate_given_not_start",
+    ]:
         assert col in df.columns, f"missing {col}"
 
 

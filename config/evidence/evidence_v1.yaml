@@ -1,0 +1,68 @@
+version: evidence-v1.0.0
+created_at: '2026-08-16'
+description: >-
+  Evidence layer v1 — blends historical priors with current-season evidence,
+  where the current-season influence is driven by accumulated evidence volume
+  (effective minutes), NOT arbitrary gameweek decay. Produces ev_* trust
+  weights and blended rates consumed by the V3 engines ONLY when an explicit
+  evidence version is requested (research/evidence.py injects the ev_* columns;
+  the production path never sees them). Not listed in config/active.yaml.
+  Not claimed optimal — weights validated via walk-forward in research.
+
+accumulation:
+  # effective_minutes = w_minutes*minutes + w_starts*starts + w_app*appearances
+  weight_minutes: 1.0
+  weight_starts: 1.5
+  weight_appearances: 0.5
+  # strength = floor + (1 - floor) * (1 - exp(-effective_minutes/saturation))
+  saturation_minutes: 300
+  strength_floor: 0.10
+  max_strength: 0.97
+
+feature_groups:
+  rate_attack:
+    transition_exponent: 2.0
+    min_current_weight: 0.60
+    hist_source: prev_xgi_per_90
+    fallback: position_average
+    label: 'attack rate (xG+xA per 90)'
+  starting:
+    transition_exponent: 0.6
+    min_current_weight: 0.85
+    hist_source: prev_starts_rate
+    fallback: position_average
+    label: 'starting rate'
+  minutes:
+    transition_exponent: 0.8
+    min_current_weight: 0.60
+    hist_source: prev_minutes_per_90
+    fallback: position_average
+    label: 'minutes per game'
+  bonus:
+    transition_exponent: 2.5
+    min_current_weight: 0.40
+    hist_source: prev_bps_per_90
+    fallback: league_average
+    label: 'BPS rate per 90'
+  team:
+    transition_exponent: 0.7
+    min_current_weight: 0.50
+    hist_source: prev_season_team
+    fallback: none
+    label: 'team attack/defense strength'
+
+new_player:
+  # Position-average fallbacks only use players with >= min_games of previous
+  # season history, so sparse/debut players keep a league-anchored prior.
+  position_prior_min_games: 10
+  # A personal prior is only trusted once the player has this much previous
+  # season history; otherwise the position average is used.
+  personal_prior_min_games: 3
+  personal_prior_min_minutes: 90
+
+explainability:
+  # Labels surfaced to the Assistant Manager (LLM reads metadata, never computes)
+  source_order:
+    - current
+    - blended
+    - historical

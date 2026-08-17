@@ -115,31 +115,55 @@ def project_expected_minutes(
         hist_mode = bool(hist_min.get("enabled", False))
         if hist_mode:
             # Empirical probability-weighted model: P(start) + P(sub|not start).
-            start_prob, minutes_if_starting, substitution_risk, expected_minutes, sub_rate_not_start = (
-                _compute_historical_expected_minutes(
-                    row, starts, starts_rate, minutes_per_game, position,
-                    status, chance_next, form,
-                    start_cfg, sub_cfg, history_cfg, hist_min,
-                )
+            (
+                start_prob,
+                minutes_if_starting,
+                substitution_risk,
+                expected_minutes,
+                sub_rate_not_start,
+            ) = _compute_historical_expected_minutes(
+                row,
+                starts,
+                starts_rate,
+                minutes_per_game,
+                position,
+                status,
+                chance_next,
+                form,
+                start_cfg,
+                sub_cfg,
+                history_cfg,
+                hist_min,
             )
         else:
             # 1. Start probability
             start_prob = _compute_start_probability(
-                status, starts_rate, chance_next, form, start_cfg,
+                status,
+                starts_rate,
+                chance_next,
+                form,
+                start_cfg,
             )
 
             # 2. Minutes if starting (history blended with positional baseline)
             minutes_if_starting = _compute_minutes_if_starting(
-                starts, minutes_per_game, position, positional_minutes, history_cfg,
+                starts,
+                minutes_per_game,
+                position,
+                positional_minutes,
+                history_cfg,
             )
 
             # 3. Substitution risk
             substitution_risk = _compute_substitution_risk(
-                minutes_if_starting, sub_cfg,
+                minutes_if_starting,
+                sub_cfg,
             )
 
             # 4. Composite expected minutes
-            expected_minutes = start_prob * minutes_if_starting * (1 - substitution_risk)
+            expected_minutes = (
+                start_prob * minutes_if_starting * (1 - substitution_risk)
+            )
             expected_minutes = float(np.clip(expected_minutes, 0.0, 90.0))
             sub_rate_not_start = 0.0
 
@@ -150,30 +174,32 @@ def project_expected_minutes(
         data_quality, n_sources = _assess_data_quality(row, starts, chance_next)
         confidence = float(confidence_cfg.get(data_quality, 45) or 45)
 
-        projections.append(ExpectedMinutesProjection(
-            player_id=player_id,
-            web_name=web_name,
-            position=position,
-            team_id=team_id,
-            expected_minutes=round(expected_minutes, 1),
-            start_probability=round(start_prob, 3),
-            minutes_if_starting=round(minutes_if_starting, 1),
-            substitution_risk=round(substitution_risk, 3),
-            sub_rate_given_not_start=round(sub_rate_not_start, 3),
-            rotation_risk=rotation_risk,
-            confidence=round(confidence, 1),
-            data_quality=data_quality,
-            games_played=games_played,
-            contributing_factors={
-                "gameweek_id": gameweek_id,
-                "starts_rate": round(starts_rate, 3),
-                "chance_next": round(chance_next, 3),
-                "historical_minutes_per_game": round(minutes_per_game, 1),
-                "status": status,
-                "sub_rate_given_not_start": round(sub_rate_not_start, 3),
-                "data_sources": n_sources,
-            },
-        ))
+        projections.append(
+            ExpectedMinutesProjection(
+                player_id=player_id,
+                web_name=web_name,
+                position=position,
+                team_id=team_id,
+                expected_minutes=round(expected_minutes, 1),
+                start_probability=round(start_prob, 3),
+                minutes_if_starting=round(minutes_if_starting, 1),
+                substitution_risk=round(substitution_risk, 3),
+                sub_rate_given_not_start=round(sub_rate_not_start, 3),
+                rotation_risk=rotation_risk,
+                confidence=round(confidence, 1),
+                data_quality=data_quality,
+                games_played=games_played,
+                contributing_factors={
+                    "gameweek_id": gameweek_id,
+                    "starts_rate": round(starts_rate, 3),
+                    "chance_next": round(chance_next, 3),
+                    "historical_minutes_per_game": round(minutes_per_game, 1),
+                    "status": status,
+                    "sub_rate_given_not_start": round(sub_rate_not_start, 3),
+                    "data_sources": n_sources,
+                },
+            )
+        )
 
     projections.sort(key=lambda p: p.player_id)
     return projections
@@ -189,6 +215,7 @@ def expected_minutes_to_dataframe(
 # ------------------------------------------------------------------
 # Internal helpers
 # ------------------------------------------------------------------
+
 
 def _col(features_df: pd.DataFrame, idx, name: str) -> float:
     """Safely read a column value from a feature DataFrame by index."""
@@ -300,8 +327,12 @@ def _compute_historical_expected_minutes(
     hm = hist_min.get("positional", {}) or {}
     pos_hist = hm.get(position, hm.get("MID", {})) or {}
     if not pos_hist:
-        pos_hist = {"start_rate_prior": 0.5, "min_if_start": 80.0,
-                    "min_if_sub": 30.0, "sub_rate_given_not_start": 0.2}
+        pos_hist = {
+            "start_rate_prior": 0.5,
+            "min_if_start": 80.0,
+            "min_if_sub": 30.0,
+            "sub_rate_given_not_start": 0.2,
+        }
 
     # --- P(start) -----------------------------------------------------------
     unavailable = start_cfg.get("unavailable_statuses", ["i", "s", "u"])
@@ -316,22 +347,42 @@ def _compute_historical_expected_minutes(
         hist_appearances = float(row.get("hist_appearances", np.nan))
         hist_starts = float(row.get("hist_starts", np.nan))
 
-        if np.isfinite(hist_appearances) and np.isfinite(hist_starts) and (alpha + beta + hist_appearances) > 0:
+        if (
+            np.isfinite(hist_appearances)
+            and np.isfinite(hist_starts)
+            and (alpha + beta + hist_appearances) > 0
+        ):
             # Beta-binomial posterior: sample-size-aware P(start).
             observed = (alpha + hist_starts) / (alpha + beta + hist_appearances)
         else:
             # Fallback: fixed-weight blend of observed rate toward position prior.
             prior_weight = float(hist_min.get("start_prior_weight", 0.8) or 0.8)
-            observed = prior_weight * np.clip(starts_rate, 0.0, 1.0) + (1 - prior_weight) * prior
+            observed = (
+                prior_weight * np.clip(starts_rate, 0.0, 1.0)
+                + (1 - prior_weight) * prior
+            )
         observed = float(np.clip(observed, 0.0, 1.0))
 
-        # Previous-season shrinkage for tiny current-season start samples.
-        prev_cfg = hist_min.get("prev_season", {}) or {}
-        if starts < int(prev_cfg.get("min_current_starts", 3)):
-            prev_rate = float(row.get("hist_prev_starts_rate", np.nan))
-            if np.isfinite(prev_rate):
-                prev_w = float(prev_cfg.get("prev_weight", 0.0) or 0.0)
-                observed = (1 - prev_w) * observed + prev_w * np.clip(prev_rate, 0.0, 1.0)
+        # Evidence layer (research/evidence.py): blend the observed posterior
+        # toward the evidence-blended prior at weight ev_w_starting. Active only
+        # when the ev_* columns are present (research backtest injects them
+        # deliberately; production never does); otherwise the fixed-weight
+        # previous-season shrinkage below applies.
+        ev_w_start = float(row.get("ev_w_starting", np.nan))
+        ev_prior_rate = float(row.get("ev_prior_starts_rate", np.nan))
+        if np.isfinite(ev_w_start) and np.isfinite(ev_prior_rate):
+            observed = ev_w_start * observed + (1 - ev_w_start) * np.clip(
+                ev_prior_rate, 0.0, 1.0
+            )
+        else:
+            prev_cfg = hist_min.get("prev_season", {}) or {}
+            if starts < int(prev_cfg.get("min_current_starts", 3)):
+                prev_rate = float(row.get("hist_prev_starts_rate", np.nan))
+                if np.isfinite(prev_rate):
+                    prev_w = float(prev_cfg.get("prev_weight", 0.0) or 0.0)
+                    observed = (1 - prev_w) * observed + prev_w * np.clip(
+                        prev_rate, 0.0, 1.0
+                    )
 
         start_prob = observed
         if form >= float(start_cfg.get("high_form_threshold", 6.0) or 6.0):
@@ -350,6 +401,12 @@ def _compute_historical_expected_minutes(
     # --- E[min | start] ------------------------------------------------------
     min_if_start = float(pos_hist.get("min_if_start", 80.0) or 80.0)
     min_starts = int(history_cfg.get("min_starts_for_history", 3) or 3)
+    # Evidence layer: ev_minutes_per_start is already blended current-vs-historical
+    # and reliability-guarded, so a single current start is enough to use it.
+    ev_mps = float(row.get("ev_minutes_per_start", np.nan))
+    if np.isfinite(ev_mps) and starts >= 1 and ev_mps > 0:
+        minutes_per_game = ev_mps
+        min_starts = 1
     if starts >= min_starts and minutes_per_game > 0:
         history_blend = float(history_cfg.get("history_blend", 0.6) or 0.6)
         base_blend = float(history_cfg.get("base_blend", 0.4) or 0.4)
@@ -372,8 +429,7 @@ def _compute_historical_expected_minutes(
     substitution_risk = _compute_substitution_risk(min_if_start, sub_cfg)
 
     expected_minutes = (
-        start_prob * min_if_start
-        + (1 - start_prob) * sub_rate * min_if_sub
+        start_prob * min_if_start + (1 - start_prob) * sub_rate * min_if_sub
     )
     expected_minutes = float(np.clip(expected_minutes, 0.0, 90.0))
     return start_prob, min_if_start, substitution_risk, expected_minutes, sub_rate
