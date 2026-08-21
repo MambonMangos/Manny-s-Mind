@@ -47,6 +47,7 @@ class LLMSettings:
     top_projections: int
     top_differentials: int
     include_sources: bool
+    reasoning_effort: str = ""
 
 
 def get_api_key() -> str:
@@ -125,4 +126,8 @@ def load_llm_settings() -> LLMSettings:
             context_cfg.get("top_differentials", 5), "top_differentials", 5
         ),
         include_sources=bool(prov_cfg.get("include_sources", True)),
+        reasoning_effort=(
+            os.getenv("LLM_REASONING_EFFORT")
+            or str(provider_cfg.get("reasoning_effort", "")).strip()
+        ),
     )

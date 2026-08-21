@@ -153,6 +153,7 @@ class OpenAIProvider:
         max_tokens: int = 900,
         timeout_seconds: float = 30.0,
         max_retries: int = 2,
+        reasoning_effort: str = "",
     ) -> None:
         if not model:
             raise LLMError("LLM_MODEL is not configured for provider 'openai'")
@@ -165,14 +166,21 @@ class OpenAIProvider:
         self._max_tokens = max_tokens
         self._timeout = timeout_seconds
         self._retries = max_retries
+        self._reasoning_effort = reasoning_effort.strip().lower()
 
     def chat(self, messages: list[ChatMessage]) -> ChatResult:
-        payload = {
+        payload: dict = {
             "model": self._model,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
             "temperature": self._temperature,
             "max_tokens": self._max_tokens,
         }
+        # Reasoning models (e.g. Gemini 3.x via OpenAI-compatible endpoints)
+        # spend thinking tokens from the max_tokens budget; a low effort keeps
+        # the visible reply from being truncated. Omitted when unset so
+        # providers that reject the parameter are unaffected.
+        if self._reasoning_effort:
+            payload["reasoning_effort"] = self._reasoning_effort
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
@@ -328,6 +336,7 @@ def get_provider(settings) -> tuple[LLMProvider, bool, str]:
                 max_tokens=settings.max_tokens,
                 timeout_seconds=settings.timeout_seconds,
                 max_retries=settings.max_retries,
+                reasoning_effort=getattr(settings, "reasoning_effort", ""),
             )
     except LLMError as exc:
         logger.warning("LLM provider unavailable; falling back to offline mode: %s", exc)

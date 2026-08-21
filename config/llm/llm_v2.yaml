@@ -1,0 +1,35 @@
+version: "2.0.0"
+created_at: "2026-08-20"
+description: "Conversational Assistant — LLM provider defaults and cost controls. Raises max_tokens for reasoning models (Gemini 3.x spends thinking tokens from the same budget, which truncated replies at 900) and sends reasoning_effort=low to limit thinking spend."
+
+# Provider defaults. Deployment-specific overrides (LLM_PROVIDER / LLM_MODEL /
+# LLM_BASE_URL / LLM_REASONING_EFFORT) are read from the environment; the API
+# key is always a secret (Streamlit secrets or environment) and never lives in
+# this file.
+provider:
+  name: "openai"          # openai | anthropic | mock
+  model: "gpt-4o-mini"
+  base_url: ""            # empty -> provider default (openai=https://api.openai.com/v1,
+                          #                          anthropic=https://api.anthropic.com)
+  temperature: 0.4
+  max_tokens: 4000        # v2: raised from 900 — reasoning models consume this
+                          # budget with invisible thinking tokens before any
+                          # visible output (finish_reason=length truncation)
+  timeout_seconds: 30
+  max_retries: 2
+  reasoning_effort: "low" # v2: sent as reasoning_effort in OpenAI-compatible
+                          # payloads; omitted when empty. Keeps Gemini 3.x
+                          # thinking spend small so visible replies fit.
+
+conversation:
+  max_messages: 12        # last-N messages sent to the model per turn
+  max_user_chars: 4000    # per-user-message character cap
+  per_session_request_limit: 60
+  max_session_tokens: 100000  # cumulative token budget per session, then capped
+
+context:
+  top_projections: 15     # top V3 xPts players included in the prompt
+  top_differentials: 5    # league differentials included when available
+
+provenance:
+  include_sources: true   # attach a traceable "Data sources" block to each reply
