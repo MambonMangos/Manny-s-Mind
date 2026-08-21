@@ -10,6 +10,11 @@ from services.assistant_manager.models import (
     ChipRecommendation,
     SquadEvaluation,
 )
+from utils.fpl_rules import validate_chip_plan
+
+# Deterministic tie-break when two chips target the same gameweek with equal
+# confidence: earlier in this list wins.
+_CHIP_PRIORITY: tuple[str, ...] = ("bboost", "3xc", "free_hit", "wildcard")
 
 
 def _check_double_gameweeks(
@@ -35,6 +40,64 @@ def _check_blank_gameweeks(
             team_gws.add(f["event"])
 
     return [gw for gw in gameweeks if gw not in team_gws]
+
+
+def _resolve_chip_conflicts(
+    recommendations: list[ChipRecommendation],
+) -> list[ChipRecommendation]:
+    """Enforce the one-chip-per-gameweek rule on a set of recommendations.
+
+    When two or more active recommendations target the same gameweek, the
+    higher-confidence one is kept and the others are demoted with an explicit
+    explanation.  Ties are broken by ``_CHIP_PRIORITY``.  The final plan is
+    always verified against :func:`utils.fpl_rules.validate_chip_plan`.
+    """
+    by_gw: dict[int, list[ChipRecommendation]] = {}
+    for rec in recommendations:
+        if rec.should_play and rec.best_gameweek is not None:
+            by_gw.setdefault(rec.best_gameweek, []).append(rec)
+
+    # Free Hit is illegal in GW1 — demote it alone if it lands there.
+    for rec in recommendations:
+        if rec.chip_name == "free_hit" and rec.should_play and rec.best_gameweek == 1:
+            rec.should_play = False
+            rec.reasoning = (
+                "Free Hit cannot be played in GW1. Save it for a later "
+                "blank gameweek or fixture swing."
+            )
+
+    for gw, group in by_gw.items():
+        if len(group) < 2:
+            continue
+        winner = min(
+            group,
+            key=lambda r: (-r.confidence, _CHIP_PRIORITY.index(r.chip_name)),
+        )
+        for loser in group:
+            if loser is winner:
+                continue
+            loser.should_play = False
+            loser.reasoning = (
+                f"Cannot play {loser.chip_label} and {winner.chip_label} in "
+                f"GW{gw} — only one chip per gameweek. Kept {winner.chip_label} "
+                f"(higher confidence)."
+            )
+
+    # Defensive check: the emitted plan must satisfy the rules authority.
+    assignments = {
+        rec.chip_name: rec.best_gameweek if rec.should_play else None
+        for rec in recommendations
+    }
+    violations = validate_chip_plan(assignments)
+    if violations:  # pragma: no cover - resolution above must prevent this
+        for rec in recommendations:
+            if rec.should_play:
+                rec.should_play = False
+                rec.reasoning = (
+                    f"Plan rejected by rules validation: {violations[0].message}"
+                )
+
+    return recommendations
 
 
 def evaluate_chips(
@@ -231,4 +294,4 @@ def evaluate_chips(
 
     recommendations.append(tc_rec)
 
-    return recommendations
+    return _resolve_chip_conflicts(recommendations)
