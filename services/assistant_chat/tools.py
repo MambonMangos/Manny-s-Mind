@@ -15,10 +15,13 @@ through to the conversational provider. Every tool is deterministic, safe
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
 
 from services.assistant_chat.context import ChatContext
+from services.squad_validator import Player, Squad, validate_squad
+from utils.fpl_rules import SQUAD_SIZE, format_validation_errors
 
 # ---------------------------------------------------------------------------
 # Tool result
@@ -63,7 +66,11 @@ _SHADOW_PROJ_FIELDS = ("position", "xpts", "expected_minutes", "start_probabilit
 
 
 def _norm_name(name: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", name.lower()).strip()
+    # Decompose accents (é → e + combining accent), strip combining marks,
+    # then normalize whitespace — so "Guéhi" and "Guehi" both produce "guehi".
+    normalized = unicodedata.normalize("NFKD", name.lower())
+    stripped = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9]+", " ", stripped).strip()
 
 
 def _build_player_index(context: ChatContext) -> dict[str, dict]:
@@ -182,6 +189,32 @@ def _has_transfer_intent(low: str) -> bool:
             "get rid of",
         )
     ) or bool(re.search(r"\bout\b.*\bin\b|\bin\b.*\bout\b", low))
+
+
+def _has_validate_intent(low: str) -> bool:
+    return any(
+        word in low
+        for word in (
+            "validate",
+            "check squad",
+            "squad valid",
+            "is my squad legal",
+            "is my team legal",
+            "squad check",
+            "check my team",
+        )
+    )
+
+
+def _has_multi_transfer_intent(low: str) -> bool:
+    """Detect intent for evaluating a complete multi-transfer plan."""
+    return (
+        "validate transfer" in low
+        or "check transfer" in low
+        or "transfer plan" in low
+        or "will this work" in low
+        or ("sell" in low and "buy" in low)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -400,6 +433,222 @@ def captaincy(context: ChatContext) -> ToolResult:
     return ToolResult(name="captaincy", content="\n".join(lines), sources=sources)
 
 
+def validate_current_squad(context: ChatContext) -> ToolResult:
+    """Validate the user's current squad against all FPL rules.
+
+    Returns a structured validation result showing whether the squad is legal,
+    with specific error codes for any violations found.
+    """
+    if not context.squad:
+        return ToolResult(
+            name="validate_current_squad",
+            content="No squad data available to validate.",
+            sources=["No squad in context"],
+        )
+
+    # Build Player objects from context
+    players = []
+    for row in context.squad:
+        try:
+            players.append(Player(
+                player_id=hash(row.get("player", "")) & 0xFFFFFFFF,
+                web_name=str(row.get("player", "")),
+                position=str(row.get("position", "")),
+                team_id=0,  # not available in chat context
+                price=float(row.get("price", 0)),
+            ))
+        except (ValueError, TypeError):
+            continue
+
+    if len(players) != SQUAD_SIZE:
+        return ToolResult(
+            name="validate_current_squad",
+            content=format_validation_errors([
+                __import__("utils.fpl_rules", fromlist=["ValidationError"]).ValidationError(
+                    "INVALID_SQUAD_SIZE",
+                    f"Squad has {len(players)} players, must have exactly {SQUAD_SIZE}.",
+                )
+            ]),
+            sources=["Squad size check"],
+        )
+
+    squad = Squad(players=tuple(players))
+    result = validate_squad(squad)
+
+    # Format output
+    lines = [
+        "**Squad Validation Result:**",
+        "",
+        f"- Status: **{'VALID' if result.valid else 'INVALID'}**",
+        f"- Squad size: {result.squad_size}",
+        f"- Total cost: £{result.total_cost:.1f}m",
+        f"- Bank: £{result.bank:.1f}m",
+        f"- Position counts: {result.position_counts}",
+    ]
+
+    if result.errors:
+        lines.append("")
+        lines.append("**Issues found:**")
+        for err in result.errors:
+            lines.append(f"- [{err.code}] {err.message}")
+
+    sources = [f"Squad validation: {len(players)} players, £{result.total_cost:.1f}m"]
+    return ToolResult(
+        name="validate_current_squad",
+        content="\n".join(lines),
+        sources=sources,
+    )
+
+
+def evaluate_transfer_plan(
+    context: ChatContext,
+    sell_names: list[str],
+    buy_names: list[str],
+) -> ToolResult:
+    """Validate a complete multi-transfer plan by constructing and checking
+    the resulting squad.
+
+    Unlike evaluate_user_proposal (which checks one swap), this validates
+    the ENTIRE resulting squad after all transfers are applied.
+
+    This is the deterministic constraint layer that prevents illegal squads
+    from reaching the user.
+    """
+    index = _build_player_index(context)
+
+    # Resolve sell candidates
+    sell_players = []
+    for name in sell_names:
+        view = index.get(_norm_name(name))
+        if view is None or not view.get("owned"):
+            return ToolResult(
+                name="evaluate_transfer_plan",
+                content=f"**{name}** is not in your squad — cannot sell them.",
+                sources=[f"Sell target {name} not found in squad"],
+            )
+        sell_players.append(view)
+
+    # Resolve buy candidates
+    buy_players = []
+    for name in buy_names:
+        view = index.get(_norm_name(name))
+        if view is None:
+            return ToolResult(
+                name="evaluate_transfer_plan",
+                content=f"No data for **{name}** in this report.",
+                sources=[f"Buy target {name} not found in projections"],
+            )
+        buy_players.append(view)
+
+    # Must sell and buy the same number
+    if len(sell_players) != len(buy_players):
+        return ToolResult(
+            name="evaluate_transfer_plan",
+            content=(
+                f"Selling {len(sell_players)} but buying {len(buy_players)} "
+                "players. Must be equal to maintain a legal 15-player squad."
+            ),
+            sources=["Transfer count mismatch"],
+        )
+
+    # Build Squad from context
+    squad_players = []
+    for row in context.squad:
+        try:
+            squad_players.append(Player(
+                player_id=hash(row.get("player", "")) & 0xFFFFFFFF,
+                web_name=str(row.get("player", "")),
+                position=str(row.get("position", "")),
+                team_id=0,
+                price=float(row.get("price", 0)),
+            ))
+        except (ValueError, TypeError):
+            continue
+
+    if len(squad_players) != SQUAD_SIZE:
+        return ToolResult(
+            name="evaluate_transfer_plan",
+            content="Cannot validate — squad data incomplete.",
+            sources=["Squad size mismatch"],
+        )
+
+    current_squad = Squad(players=tuple(squad_players))
+
+    # Build Player objects for incoming players
+    incoming = []
+    for view in buy_players:
+        try:
+            incoming.append(Player(
+                player_id=hash(view.get("name", "")) & 0xFFFFFFFF,
+                web_name=str(view.get("name", "")),
+                position=str(view.get("position", "")),
+                team_id=0,
+                price=float(view.get("price", 0)) if view.get("price") else 0.0,
+            ))
+        except (ValueError, TypeError):
+            return ToolResult(
+                name="evaluate_transfer_plan",
+                content=f"Missing price data for **{view.get('name', '?')}**.",
+                sources=["Price data incomplete"],
+            )
+
+    # Build sell IDs
+    sell_ids = [hash(p.get("name", "")) & 0xFFFFFFFF for p in sell_players]
+
+    # Validate the complete transfer plan
+    from services.squad_validator import validate_transfer_proposal
+    validation = validate_transfer_proposal(
+        current_squad=current_squad,
+        sold_ids=sell_ids,
+        bought_players=incoming,
+    )
+
+    # Format output
+    lines = [
+        "**Transfer Plan Validation:**",
+        "",
+        f"- Sell: {', '.join(sell_names)}",
+        f"- Buy: {', '.join(buy_names)}",
+        f"- Status: **{'VALID' if validation.valid else 'INVALID'}**",
+        f"- Resulting bank: £{validation.resulting_bank:.1f}m",
+        f"- Cost change: £{validation.cost_change:+.1f}m",
+    ]
+
+    if validation.errors:
+        lines.append("")
+        lines.append("**Issues found:**")
+        for err in validation.errors:
+            lines.append(f"- [{err.code}] {err.message}")
+        lines.append("")
+        lines.append(
+            "**This transfer plan is not legal under FPL rules. "
+            "I will not recommend an invalid squad.**"
+        )
+    else:
+        # Add xPts impact if available
+        total_delta = 0.0
+        for sell_v, buy_v in zip(sell_players, buy_players):
+            sell_xpts = float(sell_v.get("xpts", 0) or 0)
+            buy_xpts = float(buy_v.get("xpts", 0) or 0)
+            delta = buy_xpts - sell_xpts
+            total_delta += delta
+            lines.append(
+                f"- {sell_v['name']} ({sell_xpts:.1f} xPts) → "
+                f"{buy_v['name']} ({buy_xpts:.1f} xPts): **{delta:+.1f}**"
+            )
+        lines.append(f"\n- **Total projected change: {total_delta:+.1f} xPts**")
+
+    sources = []
+    for v in sell_players + buy_players:
+        sources.extend(_view_to_sources(context, v))
+
+    return ToolResult(
+        name="evaluate_transfer_plan",
+        content="\n".join(lines),
+        sources=sources,
+    )
+
+
 def budget_math(context: ChatContext, name: str) -> ToolResult:
     """What a player costs, and the most expensive player you could afford."""
     index = _build_player_index(context)
@@ -501,15 +750,27 @@ def _parse_transfer(text: str, names: list[str]) -> tuple[str | None, str | None
 def run_tools(context: ChatContext, message: str) -> ToolResult | None:
     """Route one user message to a tool, or return ``None``.
 
-    Priority: captaincy > transfer proposal > comparison > budget. Requires a
-    matched player name (captaincy works without one). Never raises — any
-    unexpected issue simply falls through to the conversational provider.
+    Priority: validate_squad > multi_transfer > captaincy > transfer proposal > comparison > budget.
+    Requires a matched player name (captaincy works without one).
+    Never raises — any unexpected issue simply falls through to the
+    conversational provider.
     """
     if not message:
         return None
     low = message.lower()
     index = _build_player_index(context)
     names = _find_players(message, index)
+
+    # Squad validation (no player match needed)
+    if _has_validate_intent(low):
+        return validate_current_squad(context)
+
+    # Multi-transfer plan validation
+    if _has_multi_transfer_intent(low) and len(names) >= 2:
+        # Try to parse sell/buy from the message
+        sell_names, buy_names = _parse_multi_transfer(message, names)
+        if sell_names and buy_names:
+            return evaluate_transfer_plan(context, sell_names, buy_names)
 
     if _has_captaincy_intent(low):
         return captaincy(context)
@@ -528,3 +789,34 @@ def run_tools(context: ChatContext, message: str) -> ToolResult | None:
         return budget_math(context, names[0])
 
     return None
+
+
+def _parse_multi_transfer(text: str, names: list[str]) -> tuple[list[str], list[str]]:
+    """Parse sell and buy lists from a multi-transfer message.
+
+    Tries to identify which names are being sold vs bought.
+    """
+    low = text.lower()
+    sell_names = []
+    buy_names = []
+
+    # Look for explicit "sell X Y" and "buy A B" patterns
+    sell_match = re.search(r"sell\s+(.+?)(?:\s+and|\s+buy|\s+for|\s+to)", low)
+    buy_match = re.search(r"buy\s+(.+?)(?:\s+and|\s+sell|\s+for|\s+from)", low)
+
+    if sell_match and buy_match:
+        sell_text = sell_match.group(1)
+        buy_text = buy_match.group(1)
+        for name in names:
+            if _norm_name(name) in _norm_name(sell_text):
+                sell_names.append(name)
+            elif _norm_name(name) in _norm_name(buy_text):
+                buy_names.append(name)
+    else:
+        # Fallback: first half of names are sell, second half are buy
+        mid = len(names) // 2
+        if mid > 0:
+            sell_names = names[:mid]
+            buy_names = names[mid:]
+
+    return sell_names, buy_names

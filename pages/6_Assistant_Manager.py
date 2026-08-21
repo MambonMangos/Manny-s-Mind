@@ -66,6 +66,8 @@ if report.squad_evaluation is None or not report.squad_evaluation.players:
         "The Conversational Assistant below is still available."
     )
     squad_eval = None
+else:
+    squad_eval = report.squad_evaluation
 
 
 # ---------------------------------------------------------------------------

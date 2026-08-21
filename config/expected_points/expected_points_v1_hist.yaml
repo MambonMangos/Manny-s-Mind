@@ -63,10 +63,10 @@ variance_sources:
   minutes: 0.35
   base: 0.25
 confidence:
-  no_data: 20
-  limited_data: 40
-  moderate_data: 60
-  good_data: 75
+  none: 20
+  limited: 40
+  moderate: 60
+  good: 75
   quality_multipliers:
     none: 1.5
     limited: 1.2

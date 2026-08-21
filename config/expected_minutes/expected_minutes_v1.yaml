@@ -39,10 +39,10 @@ history:
 
 # Confidence tiers based on data availability.
 confidence:
-  no_data: 25
-  limited_data: 45
-  moderate_data: 65
-  good_data: 80
+  none: 25
+  limited: 45
+  moderate: 65
+  good: 80
 
 # Classification thresholds for rotation risk.
 rotation_risk:

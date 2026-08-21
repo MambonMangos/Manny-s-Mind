@@ -33,10 +33,10 @@ history:
   history_blend: 0.6
   base_blend: 0.4
 confidence:
-  no_data: 25
-  limited_data: 45
-  moderate_data: 65
-  good_data: 80
+  none: 25
+  limited: 45
+  moderate: 65
+  good: 80
 rotation_risk:
   high_threshold: 0.3
   medium_threshold: 0.6
