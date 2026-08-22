@@ -770,3 +770,76 @@ def test_usage_state_counts_and_limit():
     assert snap.prompt_tokens == 5
     assert snap.completion_tokens == 3
     assert usage.over_limit(1) is True
+
+
+# ---------------------------------------------------------------------------
+# Shadow projection rows (heterogeneous model output)
+# ---------------------------------------------------------------------------
+
+def test_shadow_row_accepts_v2_style_projections():
+    """V2 shadow objects use minutes_proj and lack contributing_factors."""
+    from types import SimpleNamespace
+
+    from services.assistant_chat.context import _shadow_projection_row
+
+    proj = SimpleNamespace(
+        web_name="Bruno",
+        projected_points=5.4,
+        minutes_proj=88.0,
+        position="MID",
+    )
+    row = _shadow_projection_row(proj, "projection_v2")
+    assert row["player"] == "Bruno"
+    assert row["xpts"] == 5.4
+    assert row["expected_minutes"] == 88.0
+    assert row["start_probability"] == 0.0
+    assert row["model"] == "projection_v2"
+
+
+def test_shadow_row_accepts_v3_style_projections():
+    from types import SimpleNamespace
+
+    from services.assistant_chat.context import _shadow_projection_row
+
+    proj = SimpleNamespace(
+        web_name="Haaland",
+        projected_points=7.1,
+        expected_minutes=90.0,
+        contributing_factors={"start_probability": 0.95},
+    )
+    row = _shadow_projection_row(proj, "v3_hist_d_team")
+    assert row["expected_minutes"] == 90.0
+    assert row["start_probability"] == 0.95
+
+
+def test_build_chat_context_survives_mixed_shadow_models():
+    """A production result with both V2 and Model D shadows must not raise."""
+    from types import SimpleNamespace
+
+    from services.production_predictor import ModelRun
+
+    report = make_report()
+    report.production_pipeline_result.shadows = [
+        ModelRun(
+            model_id="projection_v2",
+            projections=[
+                SimpleNamespace(
+                    web_name="V2Guy", projected_points=4.0, minutes_proj=60.0
+                )
+            ],
+        ),
+        ModelRun(
+            model_id="v3_hist_d_team",
+            projections=[
+                SimpleNamespace(
+                    web_name="DGuy",
+                    projected_points=6.0,
+                    expected_minutes=90.0,
+                    contributing_factors={"start_probability": 0.9},
+                )
+            ],
+        ),
+    ]
+    context = build_chat_context(report)
+    assert "projection_v2" in context.shadow_projections
+    assert "v3_hist_d_team" in context.shadow_projections

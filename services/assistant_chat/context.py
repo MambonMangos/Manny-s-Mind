@@ -95,16 +95,21 @@ def _projection_row(proj) -> dict:
 
 
 def _shadow_projection_row(proj, model_id: str) -> dict:
-    """One compact context row for a shadow model projection."""
-    factors = (
-        proj.contributing_factors if isinstance(proj.contributing_factors, dict) else {}
-    )
+    """One compact context row for a shadow model projection.
+
+    Shadow models return different projection classes (V3-style objects
+    expose ``expected_minutes`` / ``contributing_factors``; the V2 pipeline
+    exposes ``minutes_proj`` and neither) — read attributes defensively.
+    """
+    factors = getattr(proj, "contributing_factors", None) or {}
     start_prob = factors.get("start_probability", 0.0)
+    minutes = getattr(proj, "expected_minutes", None)
+    if minutes is None:
+        minutes = getattr(proj, "minutes_proj", 0.0)
     row: dict[str, Any] = {
         "player": proj.web_name,
-        "position": proj.position,
         "xpts": round(float(proj.projected_points), 1),
-        "expected_minutes": round(float(proj.expected_minutes), 0),
+        "expected_minutes": round(float(minutes or 0.0), 0),
         "start_probability": round(float(start_prob or 0.0), 2),
         "model": model_id,
     }
