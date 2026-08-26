@@ -202,6 +202,10 @@ def run_assistant(
         )
     except Exception as e:  # noqa: BLE001 - pipeline failure must never crash the report
         logger.warning("Production prediction pipeline failed (non-critical): %s", e)
+        try:
+            session.rollback()
+        except Exception:  # noqa: BLE001, S110 - rollback may fail if connection is dead
+            pass
     finally:
         if "projected_points" not in player_df.columns:
             player_df["projected_points"] = 0.0

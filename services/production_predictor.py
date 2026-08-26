@@ -257,6 +257,11 @@ def _run_expected_points(store, gameweek_id, session, persist) -> ModelRun:
         )
     except Exception as exc:  # noqa: BLE001 - a failed model must not crash the app
         logger.warning("V3 expected-points projection failed: %s", exc)
+        if session is not None:
+            try:
+                session.rollback()
+            except Exception:  # noqa: BLE001, S110 - rollback itself may fail on a dead connection
+                pass
         return ModelRun(model_id="expected_points_v1", error=str(exc))
 
 
@@ -320,4 +325,9 @@ def _run_v3_hist_d_team(store, gameweek_id, session, persist) -> ModelRun:
         )
     except Exception as exc:  # noqa: BLE001 - a failed shadow must not crash the app
         logger.warning("V3 hist D-team shadow failed: %s", exc)
+        if session is not None:
+            try:
+                session.rollback()
+            except Exception:  # noqa: BLE001, S110 - rollback itself may fail on a dead connection
+                pass
         return ModelRun(model_id="v3_hist_d_team", error=str(exc))
