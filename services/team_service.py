@@ -137,20 +137,60 @@ def fetch_history(team_id: int) -> tuple[list[SeasonHistory], list[dict], list[d
     return past, data.get("current", []), data.get("chips", [])
 
 
+def _transfer_value(
+    record: dict, current_key: str, legacy_key: str, *, default=None
+) -> Any:
+    """Read a transfer record field, normalising API field naming at the boundary.
+
+    The FPL transfers endpoint currently names the swapped players
+    ``element_in`` / ``element_out`` (with ``element_*_cost`` costs); earlier
+    payloads used ``player_in`` / ``player_out`` (and ``player_*_cost``). Both
+    spellings map onto the application's internal ``Transfer`` vocabulary, which
+    stays on ``player_in`` / ``player_out``.
+    """
+    if current_key in record:
+        return record[current_key]
+    if legacy_key in record:
+        return record[legacy_key]
+    return default
+
+
 def fetch_transfers(team_id: int) -> list[Transfer]:
-    """Fetch all transfers for the team."""
+    """Fetch all transfers for the team.
+
+    A record missing both the current (``element_*``) and legacy
+    (``player_*``) identifier spellings is malformed: it is skipped and logged
+    rather than crashing the whole team page.
+    """
     data = fpl_get(f"/entry/{team_id}/transfers/")
-    return [
-        Transfer(
-            player_in=t["player_in"],
-            player_out=t["player_out"],
-            player_in_cost=t.get("player_in_cost", 0),
-            player_out_cost=t.get("player_out_cost", 0),
-            event=t.get("event", 0),
-            time=t.get("time", ""),
+    transfers: list[Transfer] = []
+    for index, record in enumerate(data):
+        player_in = _transfer_value(record, "element_in", "player_in")
+        player_out = _transfer_value(record, "element_out", "player_out")
+        if player_in is None or player_out is None:
+            logger.warning(
+                "Skipping malformed transfer record at index %d for team %d "
+                "(no player_in/player_out or element_in/element_out): %s",
+                index,
+                team_id,
+                record,
+            )
+            continue
+        transfers.append(
+            Transfer(
+                player_in=player_in,
+                player_out=player_out,
+                player_in_cost=_transfer_value(
+                    record, "element_in_cost", "player_in_cost", default=0
+                ),
+                player_out_cost=_transfer_value(
+                    record, "element_out_cost", "player_out_cost", default=0
+                ),
+                event=record.get("event", 0),
+                time=record.get("time", ""),
+            )
         )
-        for t in data
-    ]
+    return transfers
 
 
 def fetch_picks(team_id: int, event_id: int) -> GameweekPicks | None:
@@ -194,10 +234,20 @@ def fetch_all_picks(team_id: int, gameweeks: list[int]) -> dict[int, GameweekPic
 # Aggregate
 # ---------------------------------------------------------------------------
 
-def fetch_team_data(team_id: int, gameweeks: list[int] | None = None) -> TeamData:
+def fetch_team_data(
+    team_id: int,
+    gameweeks: list[int] | None = None,
+    include_picks: bool = True,
+) -> TeamData:
     """Fetch everything for a team in one call.
 
     If *gameweeks* is None, fetches GWs 1–38.
+    If *include_picks* is False, skips the per-gameweek picks request
+    entirely (Team History only needs profile/history/current — this
+    avoids up to 38 sequential calls).
+    Picks are further bounded to the team's latest gameweek with a
+    history entry, so gameweeks that would 404 (beyond the current GW)
+    are never requested.
     """
     if gameweeks is None:
         gameweeks = list(range(1, 39))
@@ -205,7 +255,13 @@ def fetch_team_data(team_id: int, gameweeks: list[int] | None = None) -> TeamDat
     profile = fetch_profile(team_id)
     past, current, chips = fetch_history(team_id)
     transfers = fetch_transfers(team_id)
-    picks = fetch_all_picks(team_id, gameweeks)
+
+    picks: dict[int, GameweekPicks] = {}
+    if include_picks:
+        latest_event = max((g.get("event", 0) for g in current), default=0)
+        bounded = [gw for gw in gameweeks if gw <= latest_event]
+        if bounded:
+            picks = fetch_all_picks(team_id, bounded)
 
     return TeamData(
         profile=profile,
