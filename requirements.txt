@@ -9,4 +9,4 @@ requests==2.34.2
 sqlalchemy==2.0.51
 streamlit==1.61.1
 urllib3==2.7.0
-alembic==1.19.1
+alembic==1.19.2
